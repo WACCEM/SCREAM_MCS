@@ -1,0 +1,6 @@
+/global/homes/f/feng045/program/PyFLEXTRKR-dev/Analysis//run_mcs_monthly_rainhov.sh /global/homes/f/feng045/program/scream/config/config_SCREAM-Cess_control_free.yml 2020 3 30.0 49.0 -110.0 -80.0 CUS
+/global/homes/f/feng045/program/PyFLEXTRKR-dev/Analysis//run_mcs_monthly_rainhov.sh /global/homes/f/feng045/program/scream/config/config_SCREAM-Cess_control_free.yml 2020 4 30.0 49.0 -110.0 -80.0 CUS
+/global/homes/f/feng045/program/PyFLEXTRKR-dev/Analysis//run_mcs_monthly_rainhov.sh /global/homes/f/feng045/program/scream/config/config_SCREAM-Cess_control_free.yml 2020 5 30.0 49.0 -110.0 -80.0 CUS
+/global/homes/f/feng045/program/PyFLEXTRKR-dev/Analysis//run_mcs_monthly_rainhov.sh /global/homes/f/feng045/program/scream/config/config_SCREAM-Cess_control_free.yml 2020 6 30.0 49.0 -110.0 -80.0 CUS
+/global/homes/f/feng045/program/PyFLEXTRKR-dev/Analysis//run_mcs_monthly_rainhov.sh /global/homes/f/feng045/program/scream/config/config_SCREAM-Cess_control_free.yml 2020 7 30.0 49.0 -110.0 -80.0 CUS
+/global/homes/f/feng045/program/PyFLEXTRKR-dev/Analysis//run_mcs_monthly_rainhov.sh /global/homes/f/feng045/program/scream/config/config_SCREAM-Cess_control_free.yml 2020 8 30.0 49.0 -110.0 -80.0 CUS

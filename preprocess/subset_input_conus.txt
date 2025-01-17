@@ -1,0 +1,14 @@
+lonmin -160.
+lonmax -30. 
+latmin 10.  
+latmax 60.
+syear 2019
+eyear 2020
+smonth 1
+emonth 12 
+indir /pscratch/sd/s/sihan/MERGIR_IMERG_Combined_V06B/
+outdir /pscratch/sd/w/wcmca1/SCREAM-cess/gpm/tb_pcp/
+
+indir2 /pscratch/sd/w/wcmca1/GPM/IR_IMERG_Combined_V06B/
+instats_dir /pscratch/sd/f/feng045/waccem/mcs_global/stats/
+outstats_dir /pscratch/sd/f/feng045/tmp/mcs_subset/conus/stats/
