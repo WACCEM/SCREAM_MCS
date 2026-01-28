@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH -N 2
 #SBATCH -C cpu
-#SBATCH -q regular
-#SBATCH -t 00:15:00
+#SBATCH -q debug
+#SBATCH -t 00:10:00
 #SBATCH --account m1867                     # charged account
 #SBATCH --job-name WeightGen                # job name in queue (``squeue``)
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=sourav.taraphdar@pnnl.gov
+#SBATCH --mail-user=zhe.feng@pnnl.gov
 
 
 #this example script uses 2 nodes and 32 cores per node on Perlmutter
@@ -14,11 +14,11 @@
 
 installdir="/global/common/software/m1867/ESMF"
 blddir="/global/cfs/cdirs/wcm_code/shared_tools/ESMF/bld"
-workdir="/pscratch/sd/s/souravt/regrid/imerg_global" #recommend scratch space
+workdir="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps" #recommend scratch space
 
 
 tgtsys="pm"
-tgtconf="pnetcdf" #"netcdf-mpi" or "netcdf" or "pnetcdf"
+tgtconf="netcdf" #"netcdf-mpi" or "netcdf" or "pnetcdf"
 debug=false
 version="v8.1.1"
 
@@ -44,15 +44,17 @@ pwd
 rm -rf PET*.RegridWeightGen.Log #remove log files from previous time
 
 #------------------------
-inres="SCREAM3km_global_ne1024pg2"
-outres="IMERG_G"
+inres="SCREAM_CONUS_ne1024"
+outres="HRRR"
 remap_method="conserve"
 
-srcfile="/pscratch/sd/s/souravt/regrid/imerg_global/SCRIP_SCREAM3km_global_ne1024pg2.nc"
-dstfile="/pscratch/sd/s/souravt/regrid/imerg_global/SCRIP_IMERG_G.nc"
+srcfile="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/SCRIP_SCREAM_CONUS.nc"
+dstfile="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/SCRIP_HRRR.nc"
+src_loc="center"  #center or corner
 
 mapdir=$workdir
 mapfile=${mapdir}/${inres}_to_${outres}_${remap_method}.nc
+echo "Weight file: " $mapfile
 
 #capture starting time for log file name
 idate=$(date "+%Y-%m-%d-%H%M")
@@ -93,9 +95,10 @@ if [ "$RegridWeightGen" = true ]; then
     echo "running  $ESMFBIN_PATH/ESMF_RegridWeightGen"
 
     if [ $tgtconf == 'netcdf' ]; then
-       $ESMFBIN_PATH/ESMF_RegridWeightGen --src_regional --dst_regional --ignore_unmapped  -s $srcfile -d $dstfile -w $mapfile -m $remap_method #--extrap_method neareststod
+       $ESMFBIN_PATH/ESMF_RegridWeightGen --src_regional --dst_regional --ignore_unmapped  -s $srcfile -d $dstfile -w $mapfile -m $remap_method --src_loc $src_loc #--extrap_method neareststod
     else
-      srun -n 64 -c 8 --cpu_bind=cores $ESMFBIN_PATH/ESMF_RegridWeightGen --64bit_offset --check --ignore_unmapped --dst_regional -s $srcfile -d $dstfile -w $mapfile -m $remap_method
+      # Use all available cores: 2 nodes × 128 cores = 256 tasks
+      srun -n 64 -c 4 --cpu_bind=cores $ESMFBIN_PATH/ESMF_RegridWeightGen --64bit_offset --check --ignore_unmapped --src_regional --dst_regional -s $srcfile -d $dstfile -w $mapfile -m $remap_method --src_loc $src_loc
     fi
 
     ##--ignore_unmapped added to avoid failure due to 
