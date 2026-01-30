@@ -25,20 +25,25 @@ The workflow remaps 3D radar reflectivity and geopotential height fields from SC
 
 ### Output Files
 
-Two files are produced per hourly input:
+Each hourly input file (containing 12×5-min timesteps) produces:
 
-1. **scream.z_mid_p_mid.5min.INSTANT.nmins_x5.YYYY-MM-DD-HHMMSS.nc** (~7.6 GB)
+1. **One combined z_mid/p_mid file** (~7.6 GB, 12 timesteps)
+   - Filename: `scream.z_mid_p_mid.5min.INSTANT.nmins_x5.YYYY-MM-DD-HHMMSS.nc`
    - Contains: `z_mid` and `p_mid` (both remapped with bilinear interpolation)
-   - Use case: Additional analysis requiring pressure levels
+   - Use case: Additional analysis requiring pressure and height
 
-2. **scream.diag_equiv_reflectivity.5min.INSTANT.nmins_x5.YYYY-MM-DD-HHMMSS.nc** (~6.1 GB)
+2. **Twelve individual reflectivity+z_mid files** (~600 MB each, 1 timestep each)
+   - Filename: `scream.diag_equiv_reflectivity.5min.INSTANT.nmins_x5.YYYY-MM-DD-HHMMSS.nc`
    - Contains: `diag_equiv_reflectivity` (neareststod) and `z_mid` (bilinear)
-   - Use case: Primary file for convective cell tracking and echo-top height analysis
+   - Use case: Primary files for convective cell tracking analysis
+   - Total size: ~6 GB for 12 files
 
-**Timestamp Format:** Output filenames use HHMMSS format (e.g., `020500` = 02:05:00 UTC) converted from SCREAM's original format (seconds since date start, e.g., `07500` seconds).
+**Timestamp Format:** Output filenames use HHMMSS format (e.g., `020500` = 02:05:00 UTC) converted from SCREAM's original format (seconds since date start, e.g., `07500` seconds). Times are rounded to the nearest minute.
 
-**Compression:** netCDF4 deflate_level=1 (3x compression for geopotential/pressure, 2x for reflectivity)
+**Compression:** netCDF4 deflate_level=1 (~2.5x compression)
 **Chunking:** time=1, lev=128 (full), y=256, x=256 (optimized for column operations)
+
+**Why split into individual files?** Single-timestep files are optimized for PyFLEXTRKR cell tracking workflows, which process one time step at a time, reducing memory overhead and enabling efficient parallel processing (by files).
 
 ---
 
@@ -115,30 +120,32 @@ wgtdir="/path/to/output/weights"
 
 ---
 
-### Step 3: Remap and Combine Variables
+### Step 3: Remap, Combine, and Split Variables
 
-The main remapping script processes one pair of files (reflectivity + geopotential height).
+The main remapping script processes one pair of files (reflectivity + geopotential height) and splits the output into individual 5-minute timestep files.
 
 #### Single File Processing
 
 ```bash
-./remap_dbz_zmid.sh \
+./remap_dbz_zmid_5min.sh \
     output.scream.diag_equiv_reflectivity.5min.INSTANT.nmins_x5.2020-06-07-07500.nc \
     output.scream.z_mid_p_mid.5min.INSTANT.nmins_x5.2020-06-07-07500.nc
 ```
 
 **Script workflow:**
-1. **Step 1 (~140s):** Remap reflectivity using neareststod (nearest neighbor)
-2. **Step 2 (~740s):** Remap z_mid and p_mid using bilinear interpolation + apply compression
-3. **Step 3 (~200s):** Combine reflectivity with z_mid into single file
-4. **Step 4 (~470s):** Rename dimensions (lat→y, lon→x), remove unwanted variables, apply compression
-5. **Step 5 (~7s):** Clean up temporary files
+1. **Step 1 (~88s):** Remap reflectivity using neareststod + rename dimensions/variables for consistency
+2. **Step 2 (~373s):** Remap z_mid and p_mid using bilinear + rename dimensions/variables + apply compression
+3. **Step 3 (~9s):** Combine reflectivity with z_mid into temporary file
+4. **Step 4 (~142s):** Split into 12 individual 5-minute files using CDO timestamps + remove unwanted variables + apply compression/chunking
+5. **Step 5 (~14s):** Clean up temporary files
 
-**Total processing time:** ~26 minutes per hourly file
+**Total processing time:** ~12 minutes per hourly file (produces 13 output files: 1 z_mid/p_mid + 12 reflectivity/z_mid)
+
+**Alternative:** For workflows that need 12-timestep files, use `remap_dbz_zmid.sh` instead (~26 min per file).
 
 #### Configuration Variables
 
-Edit the top of `remap_dbz_zmid.sh` to adjust:
+Edit the top of `remap_dbz_zmid_5min.sh` (or `remap_dbz_zmid.sh` for 12-timestep files) to adjust:
 
 ```bash
 # Chunking and compression settings
@@ -150,7 +157,8 @@ deflate_level=1   # 0 = no compression, 1-9 = compression level
 
 # Input/output directories
 in_dir='/pscratch/sd/w/wcmca1/SCREAMv1-cess2/run_conus/'
-out_dir='/pscratch/sd/w/wcmca1/SCREAMv1-cess2/remap_conus'
+tmp_dir='/pscratch/sd/w/wcmca1/SCREAMv1-cess2/remap_conus'  # Temporary files
+out_dir='/pscratch/sd/w/wcmca1/SCREAMv1-cess2/remap_conus_5min'  # Individual 5-min files
 
 # Weight files
 map_neareststod='/path/to/SCREAM_CONUS_ne1024_to_HRRR_neareststod.nc'
@@ -167,20 +175,22 @@ For processing multiple files in parallel on NERSC Perlmutter.
 
 ```bash
 python generate_taskfarmer_list.py \
-    --start-date 2020-06-01 \
-    --end-date 2020-06-30 \
+    -s 2020-06-01 \
+    -e 2020-06-30 \
     --output tasks_june2020.txt
 ```
 
 **Options:**
 - `--input-dir`: Directory containing SCREAM output files (default: configured path)
-- `--script`: Path to `remap_dbz_zmid.sh` (default: configured path)
-- `--start-date`, `--end-date`: Filter files by date range (YYYY-MM-DD format)
+- `--script`: Path to remapping script (default: `remap_dbz_zmid_5min.sh`)
+- `-s, --start-date`: Filter files by start date (YYYY-MM-DD format)
+- `-e, --end-date`: Filter files by end date (YYYY-MM-DD format)
+- `--output`: Output task list filename
 
 **Output:** Text file with one task per line:
 ```
-/path/to/remap_dbz_zmid.sh output.scream.diag_equiv_reflectivity...nc output.scream.z_mid_p_mid...nc
-/path/to/remap_dbz_zmid.sh output.scream.diag_equiv_reflectivity...nc output.scream.z_mid_p_mid...nc
+/path/to/remap_dbz_zmid_5min.sh output.scream.diag_equiv_reflectivity...nc output.scream.z_mid_p_mid...nc
+/path/to/remap_dbz_zmid_5min.sh output.scream.diag_equiv_reflectivity...nc output.scream.z_mid_p_mid...nc
 ...
 ```
 
@@ -195,30 +205,31 @@ sbatch slurm_regrid_taskfarmer.sh
 
 ```bash
 #!/bin/bash
-#SBATCH -N 5              # 5 nodes (1 server + 4 workers)
-#SBATCH -c 128            # All cores available
+#SBATCH --nodes=32
+#SBATCH -c 128
 #SBATCH -q regular
-#SBATCH -t 04:00:00       # 4 hours
+#SBATCH -t 04:00:00       # 4 hours for ~4488 files
 #SBATCH -C cpu
 #SBATCH -A your_account
 
-module load taskfarmer
-export THREADS=10         # 10 tasks per node (512 GB / 50 GB per task)
+export THREADS=16
 
-runcommands.sh tasks_june2020.txt
+runcommands.sh tasks_all.txt
 ```
 
-**Memory considerations:**
-- Peak memory per task: ~40-50 GB
+**Resource planning:**
+- Processing time: ~12 min per hourly file (conservative: 20 min)
+- Peak memory per task: ~30-40 GB
 - Perlmutter CPU node: 512 GB RAM, 128 cores
-- Recommended: `THREADS=10` (51 GB per task)
-- Conservative: `THREADS=8` (64 GB per task)
-- Aggressive: `THREADS=12-14` (37-43 GB per task)
+- **Recommended:** 16 tasks/node (32 GB per task)
+- Node throughput: 16 tasks/node × 3 files/hour/task = 48 files/node/hour
 
-**Throughput:**
-- 4 worker nodes × 10 tasks/node = 40 parallel tasks
-- ~26 min per file → ~200 files per hour
+**Throughput estimates:**
+- 16 nodes: ~770 files/hour → 4488 files in ~6 hours
+- 32 nodes: ~1536 files/hour → 4488 files in ~3 hours
 - Monitor with: `sqs` command
+
+**For smaller batches:** Adjust `--nodes` proportionally (e.g., 8 nodes for ~1000 files)
 
 ---
 
@@ -226,26 +237,37 @@ runcommands.sh tasks_june2020.txt
 
 ### Processing Time Breakdown
 
-Based on testing with 14 parallel tasks, typical processing time per file:
+**Using `remap_dbz_zmid_5min.sh` (recommended for cell tracking workflows):**
+
+Based on single-file testing, typical processing time per hourly input:
 
 | Step | Operation | Time | % of Total |
 |------|-----------|------|------------|
-| 1 | Remap reflectivity (neareststod) | 140s | 9% |
-| 2 | Remap z_mid/p_mid (bilinear + compress) | 740s | 48% |
-| 3 | Combine variables | 200s | 13% |
-| 4 | Rename, remove vars, compress | 470s | 30% |
-| 5 | Cleanup | 7s | <1% |
-| **Total** | | **1557s** | **100%** |
+| 1 | Remap reflectivity + rename | 88s | 12% |
+| 2 | Remap z_mid/p_mid + rename + compress | 373s | 53% |
+| 3 | Combine variables | 9s | 1% |
+| 4 | Split to 12 files + remove vars + compress | 142s | 20% |
+| 5 | Cleanup | 14s | 2% |
+| **Total** | | **710s** | **100%** |
 
-**Total time:** 25-28 minutes per hourly file (12×5-min timesteps)
+**Total time:** ~12 minutes per hourly file → produces 13 files (1 z_mid/p_mid + 12 reflectivity/z_mid)
+
+**Using `remap_dbz_zmid.sh` (for 12-timestep files):**
+- Total time: ~26 minutes per hourly file → produces 2 files
+- Use when downstream analysis requires multi-timestep files
 
 ### Storage Savings
 
+**Per hourly input (12 timesteps):**
+
 | File Type | Uncompressed | Compressed (deflate_level=1) | Compression Ratio |
 |-----------|--------------|------------------------------|-------------------|
-| z_mid + p_mid | ~22 GB | ~7.6 GB | 2.9:1 |
-| diag_equiv_reflectivity + z_mid | ~12 GB | ~6.1 GB | 2.0:1 |
-| **Total per hourly file** | **~34 GB** | **~13.7 GB** | **2.5:1** |
+| z_mid + p_mid (1 file, 12 times) | ~22 GB | ~7.6 GB | 2.9:1 |
+| diag_equiv_reflectivity + z_mid (12 files, 1 time each) | ~18 GB | ~7.2 GB (12×600 MB) | 2.5:1 |
+| **Total output** | **~40 GB** | **~14.8 GB** | **2.7:1** |
+
+**Per individual 5-min file:**
+- Single reflectivity+z_mid file: ~1.5 GB uncompressed → ~600 MB compressed (2.5:1)
 
 **Storage savings:** ~60% with minimal impact on read performance
 
@@ -260,10 +282,10 @@ Based on testing with 14 parallel tasks, typical processing time per file:
    - `deflate_level=1`: Good balance between compression ratio and speed
    - Higher levels (2-9) provide minimal additional compression but significantly slower
 
-3. **Why two output files:**
-   - Most analyses only need reflectivity + z_mid → smaller file size
-   - Pressure field (p_mid) available in separate file for specialized analyses
-   - Avoids redundant compression of unused variables
+3. **Why split into individual timestep files:**
+   - PyFLEXTRKR cell tracking processes one time step at a time if multiple times are in an input file
+   - Reduces memory overhead (600 MB vs 6.1 GB per file loaded)
+   - Enables more efficient parallel processing in tracking workflows as files are processed in parallel
 
 ---
 
@@ -293,7 +315,7 @@ Based on testing with 14 parallel tasks, typical processing time per file:
 
 ### Validation
 
-Check output file structure:
+Check individual 5-min file structure:
 
 ```bash
 ncdump -h scream.diag_equiv_reflectivity.5min.INSTANT.nmins_x5.2020-06-07-020500.nc
@@ -302,7 +324,7 @@ ncdump -h scream.diag_equiv_reflectivity.5min.INSTANT.nmins_x5.2020-06-07-020500
 Expected dimensions:
 ```
 dimensions:
-    time = 12 ;
+    time = 1 ;      // Single timestep
     lev = 128 ;
     y = 1059 ;
     x = 1799 ;
@@ -313,6 +335,13 @@ Expected variables:
 - `z_mid(time, lev, y, x)`
 - `latitude(y, x)` or `latitude(y)`
 - `longitude(y, x)` or `longitude(x)`
+- `time(time)` with proper time coordinate
+
+Check z_mid/p_mid file (12 timesteps):
+```bash
+ncdump -h scream.z_mid_p_mid.5min.INSTANT.nmins_x5.2020-06-07-020500.nc
+```
+Expected: `time = 12`, contains `z_mid` and `p_mid` variables
 
 ---
 
@@ -332,9 +361,11 @@ Expected variables:
 | `create_regional_remapper.py` | Generate SCRIP file for SCREAM regional spectral element grid |
 | `make_HRRR_SCRIP.ncl` | Generate SCRIP file for HRRR curvilinear grid |
 | `run_module_RegridWeightGen.sh` | Generate ESMF weight files (neareststod and bilinear) |
-| `remap_dbz_zmid.sh` | Main remapping script for single file pair |
-| `generate_taskfarmer_list.py` | Generate task list for parallel processing |
-| `slurm_regrid_taskfarmer.sh` | TaskFarmer batch script for NERSC Perlmutter |
+| `remap_dbz_zmid_5min.sh` | **Recommended:** Remap + split into individual 5-min files (~12 min/file) |
+| `remap_dbz_zmid.sh` | Alternative: Remap to 12-timestep files (~26 min/file) |
+| `test_split_timesteps.sh` | Utility to split existing 12-timestep files into individual 5-min files |
+| `generate_taskfarmer_list.py` | Generate task list for parallel processing (supports -s/-e short options) |
+| `slurm_regrid_taskfarmer.sh` | TaskFarmer batch script for NERSC Perlmutter (16 tasks/node) |
 
 ---
 
