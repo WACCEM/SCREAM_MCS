@@ -126,7 +126,7 @@ def generate_task_list(pairs, script_path, output_file):
     
     Args:
         pairs: List of (timestamp, refl_file, geop_file) tuples
-        script_path: Path to remap_dbz_zmid.sh script
+        script_path: Path to remap_dbz_zmid_5min.sh script
         output_file: Output task list filename
     """
     with open(output_file, 'w') as f:
@@ -165,8 +165,8 @@ Examples:
     parser.add_argument(
         '--script',
         type=str,
-        default='/global/homes/f/feng045/program/scream/regrid/remap_dbz_zmid.sh',
-        help='Path to remap_dbz_zmid.sh script (default: %(default)s)'
+        default='/global/homes/f/feng045/program/scream/regrid/remap_dbz_zmid_5min.sh',
+        help='Path to remap_dbz_zmid_5min.sh script (default: %(default)s)'
     )
     
     parser.add_argument(
@@ -177,12 +177,14 @@ Examples:
     )
     
     parser.add_argument(
+        '-s',
         '--start-date',
         type=str,
         help='Start date (YYYY-MM-DD format, inclusive)'
     )
     
     parser.add_argument(
+        '-e',
         '--end-date',
         type=str,
         help='End date (YYYY-MM-DD format, inclusive)'
