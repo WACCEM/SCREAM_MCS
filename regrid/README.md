@@ -231,6 +231,45 @@ runcommands.sh tasks_all.txt
 
 **For smaller batches:** Adjust `--nodes` proportionally (e.g., 8 nodes for ~1000 files)
 
+#### 4c. Check for Missing Outputs
+
+After a TaskFarmer job completes, verify all expected output files were created:
+
+```bash
+./find_missing_outputs.sh tasklist_202007.txt
+```
+
+**What it does:**
+- Reads your tasklist and checks if all 12 expected 5-min output files exist for each input
+- Reports which tasks have incomplete outputs
+- Generates a new tasklist (e.g., `tasklist_202007_missing.txt`) with only incomplete tasks
+
+**Typical output:**
+```
+Checking for missing output files from tasklist...
+Missing 5/12 outputs from: output.scream.diag_equiv_reflectivity.5min...nc
+Missing 12/12 outputs from: output.scream.diag_equiv_reflectivity.5min...nc
+
+========================================================================
+Summary:
+  Total input files checked: 72
+  Input files with missing outputs: 8
+  Total missing output files: 100 (expected: 864)
+  Missing tasklist saved to: tasklist_202007_missing.txt
+========================================================================
+```
+
+**Reprocess missing files:**
+```bash
+module load taskfarmer
+sbatch slurm_regrid_taskfarmer.sh  # Edit to use tasklist_202007_missing.txt
+```
+
+Or with GNU parallel (interactive node):
+```bash
+parallel -j 16 < tasklist_202007_missing.txt
+```
+
 ---
 
 ## Performance and Optimization
@@ -366,6 +405,7 @@ Expected: `time = 12`, contains `z_mid` and `p_mid` variables
 | `test_split_timesteps.sh` | Utility to split existing 12-timestep files into individual 5-min files |
 | `generate_taskfarmer_list.py` | Generate task list for parallel processing (supports -s/-e short options) |
 | `slurm_regrid_taskfarmer.sh` | TaskFarmer batch script for NERSC Perlmutter (16 tasks/node) |
+| `find_missing_outputs.sh` | Check tasklist for incomplete outputs, generate reprocessing list |
 
 ---
 
