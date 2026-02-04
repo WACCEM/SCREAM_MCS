@@ -137,8 +137,8 @@ echo "  Step 2 time: ${step2_time}s"
 echo ""
 echo "Step 3: Combining diag_equiv_reflectivity and z_mid variables..."
 step3_start=$(date +%s)
-# Extract diag_equiv_reflectivity from reflectivity file (use it as base)
-ncks -O -v diag_equiv_reflectivity "$tmp_refl" "$tmp_combined"
+# Extract diag_equiv_reflectivity AND coordinate variables from reflectivity file (use it as base)
+ncks -O -v diag_equiv_reflectivity,latitude,longitude "$tmp_refl" "$tmp_combined"
 # Append only z_mid from geopotential height file (not p_mid)
 ncks -A -v z_mid "$out_geop" "$tmp_combined"
 step3_end=$(date +%s)
