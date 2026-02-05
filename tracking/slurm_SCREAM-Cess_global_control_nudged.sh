@@ -18,6 +18,6 @@ source activate /global/common/software/m1867/python/pyflex
 
 # Run Python
 cd /global/homes/f/feng045/program/PyFLEXTRKR-dev/runscripts
-python run_mcs_tbpf.py /global/homes/f/feng045/program/scream/config/config_SCREAM-Cess_global_control_nudged.yml
+python run_mcs_tbpf.py /global/homes/f/feng045/program/scream/tracking/config_SCREAM-Cess_global_control_nudged.yml
 
 date

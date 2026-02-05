@@ -1,16 +1,16 @@
 #!/bin/bash
-#SBATCH -A m1867
-#SBATCH -J imerg
-#SBATCH -p debug
-#SBATCH --nodes=5
-#SBATCH --ntasks-per-node=128   # 128 workers per node (1 worker per core)
+#SBATCH -A m1657
+#SBATCH -J Cess2cell
+#SBATCH --qos=debug
+#SBATCH --nodes=4
+#SBATCH --ntasks-per-node=64   # 64 workers per node (1 worker per core)
 #SBATCH --cpus-per-task=1       # 1 CPU per worker
 #SBATCH -C cpu
-#SBATCH --time=00:10:00
+#SBATCH --time=00:30:00
 #SBATCH --exclusive
 #SBATCH --mail-user=zhe.feng@pnnl.gov
 #SBATCH --mail-type=END
-#SBATCH --output=log_mcstracking.log
+#SBATCH --output=logs/log_SCREAM-Cess2_conus_celltracking.log
 date
 
 # Calculate total tasks
@@ -28,11 +28,11 @@ scheduler_file=$SCRATCH/scheduler_${random_str}.json
 rm -f $scheduler_file
 
 module load python
-source activate /global/common/software/m1867/python/pyflex
+source activate /global/common/software/m1867/python/pyflex-dev
 
 # Set environment variables for timeouts globally
-DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT=3600s \
-DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP=3600s \
+export DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT=3600s
+export DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP=3600s
 
 # Start Dask Scheduler
 dask scheduler \
@@ -58,9 +58,13 @@ srun --ntasks=$ntasks --ntasks-per-node=$SLURM_NTASKS_PER_NODE \
      --nthreads 1 \
      --memory-limit auto &
 
+# Wait a bit to ensure workers have started
+sleep 10
+
 # Run Python
-cd /global/homes/f/feng045/program/PyFLEXTRKR-dev/runscripts
-python run_mcs_tbpf.py /global/homes/f/feng045/program/scream/config/config_imerg_mcs_tbpf_SCREAM-Cess_CONUS.yml $scheduler_file
+python /global/homes/f/feng045/program/PyFLEXTRKR-dev/runscripts/run_celltracking.py \
+    /global/homes/f/feng045/program/scream/tracking/config_celltracking_3km_SCREAMv1-Cess2_CONUS.yaml \
+    $scheduler_file
 
 # Clean up the scheduler
 echo "Cleaning up scheduler..."
