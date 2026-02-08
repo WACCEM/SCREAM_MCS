@@ -48,7 +48,7 @@ def idbz(field):
         return field
 
 
-def dbz(field, missing_value=-9999.0):
+def dbz(field, missing_value=-999.0):
     """Convert linear units back to dBZ, handling zeros and invalid values."""
     if LOG_ZH:
         # Mask out zeros and negative values to avoid -inf and nan
@@ -291,39 +291,29 @@ def remap_gridrad_file(gridrad_file, dest_grid, method='conservative',
         reuse_weights=weights_exist
     )
     
-    # Extract number of heights
-    n_heights = len(source_ds['height'])
-    
-    # Initialize output arrays
+    # Remap 3D arrays directly (xESMF handles extra dimensions automatically)
     missing_value = -999.
-    ny_dst, nx_dst = dest_grid['lat'].shape
-    zh_regrid = np.zeros((n_heights, ny_dst, nx_dst), dtype=np.float32)
-    nobs_regrid = np.zeros((n_heights, ny_dst, nx_dst), dtype=np.int16)
-    necho_regrid = np.zeros((n_heights, ny_dst, nx_dst), dtype=np.int16)
-    wvalues_regrid = np.zeros((n_heights, ny_dst, nx_dst), dtype=np.float32)
     
-    # Remap each height level
-    for k in range(n_heights):
-        # Remap reflectivity (in linear units)
-        zh_regrid[k, :, :] = regridder(source_ds['zh'].isel(height=k))
-        
-        # Remap nobs, necho, wvalues
-        nobs_regrid[k, :, :] = np.ceil(regridder(source_ds['nobs'].isel(height=k))).astype(np.int16)
-        necho_regrid[k, :, :] = np.ceil(regridder(source_ds['necho'].isel(height=k))).astype(np.int16)
-        wvalues_regrid[k, :, :] = regridder(source_ds['wvalues'].isel(height=k))
+    # Remap reflectivity (in linear units)
+    zh_regrid = regridder(source_ds['zh']).values
+    
+    # Remap nobs, necho, wvalues
+    nobs_regrid = np.ceil(regridder(source_ds['nobs']).values).astype(np.int16)
+    necho_regrid = np.ceil(regridder(source_ds['necho']).values).astype(np.int16)
+    wvalues_regrid = regridder(source_ds['wvalues']).values
     
     # Convert reflectivity back to dBZ, using missing_value for missing/invalid values
     zh_regrid_dbz = dbz(zh_regrid, missing_value=missing_value)
     
     # Extract time information from analysis_time string
     analysis_time = source_ds.attrs['analysis_time']
-    # Format: "2020-06-15 19:00:00Z" or "2020-06-15 19:00:00"
-    time_str = analysis_time.replace(' ', 'T').replace(':', '').replace('-', '').replace('Z', '')
     
-    # Get base_time (seconds since epoch)
+    # Parse to datetime object (xarray will handle encoding automatically)
     # Remove trailing 'Z' if present (UTC timezone indicator)
     analysis_time_clean = analysis_time.rstrip('Z').strip()
     dt = datetime.strptime(analysis_time_clean, '%Y-%m-%d %H:%M:%S')
+    
+    # Also keep base_time as integer for backwards compatibility
     base_time = int(dt.timestamp())
     
     # Create output dataset
@@ -335,6 +325,7 @@ def remap_gridrad_file(gridrad_file, dest_grid, method='conservative',
             'wReflectivity': (['time', 'height', 'y', 'x'], wvalues_regrid[np.newaxis, :, :, :]),
         },
         coords={
+            'time': (['time'], [dt]),
             'base_time': (['time'], [base_time]),
             'latitude': (['y', 'x'], dest_grid['lat'].values),
             'longitude': (['y', 'x'], dest_grid['lon'].values),
@@ -350,6 +341,11 @@ def remap_gridrad_file(gridrad_file, dest_grid, method='conservative',
     )
     
     # Add variable attributes
+    # Note: 'time' encoding (units, calendar) handled automatically by xarray
+    ds_out['time'].attrs = {
+        'long_name': 'Time',
+        'standard_name': 'time'
+    }
     ds_out['base_time'].attrs = {
         'long_name': 'Base time in Epoch',
         'units': 'seconds since 1970-01-01 00:00:00'
@@ -413,7 +409,6 @@ def remap_gridrad_file(gridrad_file, dest_grid, method='conservative',
     print(f"  Completed in {elapsed:.1f}s: {os.path.basename(output_file)}")
     
     # Clean up
-    regridder.clean_weight_file()
     del source_ds, ds_out, regridder
     
     return output_file
@@ -479,8 +474,9 @@ def main():
         description='Remap GridRad 3D reflectivity to HRRR grid using xESMF'
     )
     parser.add_argument(
-        'input_pattern',
-        help='Input file pattern (e.g., "/path/to/nexrad_3d*.nc" or single file)'
+        'input_files',
+        nargs='+',
+        help='Input file(s) or pattern (e.g., "/path/to/nexrad_3d*.nc" or file1.nc file2.nc ...)'
     )
     parser.add_argument(
         '-o', '--output-dir',
@@ -528,13 +524,20 @@ def main():
     os.makedirs(args.weight_dir, exist_ok=True)
     
     # Get list of input files
-    if os.path.isfile(args.input_pattern):
-        file_list = [args.input_pattern]
-    else:
-        file_list = sorted(glob.glob(args.input_pattern))
+    # If a single argument with wildcard, expand it; otherwise use as-is
+    file_list = []
+    for pattern in args.input_files:
+        if '*' in pattern or '?' in pattern:
+            # Glob pattern provided (quoted by user)
+            matched = sorted(glob.glob(pattern))
+            if matched:
+                file_list.extend(matched)
+        elif os.path.isfile(pattern):
+            # Direct file path
+            file_list.append(pattern)
     
     if len(file_list) == 0:
-        print(f"ERROR: No files found matching: {args.input_pattern}")
+        print(f"ERROR: No files found matching: {args.input_files}")
         sys.exit(1)
     
     print("=" * 80)
