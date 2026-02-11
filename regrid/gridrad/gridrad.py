@@ -13,14 +13,14 @@
 #		 to chomeyer@ou.edu.
 #-
 
+# Import python libraries
+import os
+import numpy as np
+from netCDF4 import Dataset
+from scipy import ndimage
+
 # GridRad read routine
 def read_file(infile):
-	
-	# Import python libraries
-	import sys
-	import os
-	import numpy as np
-	import netCDF4
 	
 	# Check to see if file exists
 	if not os.path.isfile(infile):
@@ -32,8 +32,6 @@ def read_file(infile):
 		print('File "' + infile + '" contains no valid data.  Returning -1.')
 		return -1
 	
-	from netCDF4 import Dataset
-	from netCDF4 import Variable
 	# Open GridRad netCDF file
 	id = Dataset(infile, "r", format="NETCDF4")
 	
@@ -91,7 +89,7 @@ def read_file(infile):
 	# Create arrays to store binned values for reflectivity at horizontal polarization
 	values    = np.zeros(x['n']*y['n']*z['n'])
 	wvalues   = np.zeros(x['n']*y['n']*z['n'])
-	values[:] = float('nan')
+	values[:] = np.nan
 
 	# Add values to arrays
 	values[index[:]]  =  (Z_H)[:]
@@ -104,7 +102,7 @@ def read_file(infile):
 	Z_H = {'values'     : values,              \
 			 'long_name'  : str(Z_H.long_name),  \
 			 'units'      : str(Z_H.units),      \
-			 'missing'    : float('nan'),        \
+			 'missing'    : np.nan,        \
 			 'wvalues'    : wvalues,             \
 			 'wlong_name' : str(wZ_H.long_name), \
 			 'wunits'     : str(wZ_H.units),     \
@@ -118,7 +116,7 @@ def read_file(infile):
 	# Create arrays to store binned values for velocity spectrum width
 	values    = np.zeros(x['n']*y['n']*z['n'])
 	wvalues   = np.zeros(x['n']*y['n']*z['n'])
-	values[:] = float('nan')
+	values[:] = np.nan
 
 	# Add values to arrays
 	values[index[:]]  =  (SW)[:]
@@ -131,7 +129,7 @@ def read_file(infile):
 	SW  = {'values'     : values,             \
 			 'long_name'  : str(SW.long_name),  \
 			 'units'      : str(SW.units),      \
-			 'missing'    : float('nan'),       \
+			 'missing'    : np.nan,       \
 			 'wvalues'    : wvalues,            \
 			 'wlong_name' : str(wSW.long_name), \
 			 'wunits'     : str(wSW.units),     \
@@ -146,7 +144,7 @@ def read_file(infile):
 		# Create arrays to store binned values for azimuthal shear
 		values    = np.zeros(x['n']*y['n']*z['n'])
 		wvalues   = np.zeros(x['n']*y['n']*z['n'])
-		values[:] = float('nan')
+		values[:] = np.nan
 
 		# Add values to arrays
 		values[index[:]]  =  (AzShr)[:]
@@ -159,7 +157,7 @@ def read_file(infile):
 		AzShr = {'values'     : values,                \
 				   'long_name'  : str(AzShr.long_name),  \
 				   'units'      : str(AzShr.units),      \
-				   'missing'    : float('nan'),          \
+				   'missing'    : np.nan,          \
 				   'wvalues'    : wvalues,               \
 				   'wlong_name' : str(wAzShr.long_name), \
 				   'wunits'     : str(wAzShr.units),     \
@@ -173,7 +171,7 @@ def read_file(infile):
 		# Create arrays to store binned values for radial divergence
 		values    = np.zeros(x['n']*y['n']*z['n'])
 		wvalues   = np.zeros(x['n']*y['n']*z['n'])
-		values[:] = float('nan')
+		values[:] = np.nan
 
 		# Add values to arrays
 		values[index[:]]  =  (Div)[:]
@@ -186,7 +184,7 @@ def read_file(infile):
 		Div = {'values'     : values,              \
 				 'long_name'  : str(Div.long_name),  \
 				 'units'      : str(Div.units),      \
-				 'missing'    : float('nan'),        \
+				 'missing'    : np.nan,        \
 				 'wvalues'    : wvalues,             \
 				 'wlong_name' : str(wDiv.long_name), \
 				 'wunits'     : str(wDiv.units),     \
@@ -206,7 +204,7 @@ def read_file(infile):
 		# Create arrays to store binned values for differential reflectivity
 		values    = np.zeros(x['n']*y['n']*z['n'])
 		wvalues   = np.zeros(x['n']*y['n']*z['n'])
-		values[:] = float('nan')
+		values[:] = np.nan
 
 		# Add values to arrays
 		values[index[:]]  =  (Z_DR)[:]
@@ -219,7 +217,7 @@ def read_file(infile):
 		Z_DR = {'values'     : values,               \
 				  'long_name'  : str(Z_DR.long_name),  \
 				  'units'      : str(Z_DR.units),      \
-				  'missing'    : float('nan'),         \
+				  'missing'    : np.nan,         \
 				  'wvalues'    : wvalues,              \
 				  'wlong_name' : str(wZ_DR.long_name), \
 				  'wunits'     : str(wZ_DR.units),     \
@@ -233,7 +231,7 @@ def read_file(infile):
 		# Create arrays to store binned values for specific differential phase
 		values    = np.zeros(x['n']*y['n']*z['n'])
 		wvalues   = np.zeros(x['n']*y['n']*z['n'])
-		values[:] = float('nan')
+		values[:] = np.nan
 
 		# Add values to arrays
 		values[index[:]]  =  (K_DP)[:]
@@ -246,7 +244,7 @@ def read_file(infile):
 		K_DP = {'values'     : values,               \
 				  'long_name'  : str(K_DP.long_name),  \
 				  'units'      : str(K_DP.units),      \
-				  'missing'    : float('nan'),         \
+				  'missing'    : np.nan,         \
 				  'wvalues'    : wvalues,              \
 				  'wlong_name' : str(wK_DP.long_name), \
 				  'wunits'     : str(wK_DP.units),     \
@@ -260,7 +258,7 @@ def read_file(infile):
 		# Create arrays to store binned values for correlation coefficient
 		values    = np.zeros(x['n']*y['n']*z['n'])
 		wvalues   = np.zeros(x['n']*y['n']*z['n'])
-		values[:] = float('nan')
+		values[:] = np.nan
 
 		# Add values to arrays
 		values[index[:]]  =  (r_HV)[:]
@@ -273,7 +271,7 @@ def read_file(infile):
 		r_HV = {'values'     : values,               \
 				  'long_name'  : str(r_HV.long_name),  \
 				  'units'      : str(r_HV.units),      \
-				  'missing'    : float('nan'),         \
+				  'missing'    : np.nan,         \
 				  'wvalues'    : wvalues,              \
 				  'wlong_name' : str(wr_HV.long_name), \
 				  'wunits'     : str(wr_HV.units),     \
@@ -318,70 +316,76 @@ def read_file(infile):
 # GridRad filter routine
 def filter(data0):
 	
-	# Import python libraries
-	import sys
-	import os
-	import numpy as np	
-	
-	#Extract year from GridRad analysis time string
+	# Extract year from GridRad analysis time string
 	year = int((data0['Analysis_time'])[0:4])
 
-	wthresh     = 1.5												# Set default bin weight threshold for filtering by year (dimensionless)
-	freq_thresh = 0.6												# Set echo frequency threshold (dimensionless)
-	Z_H_thresh  = 15.0											# Reflectivity threshold (dBZ)
-	nobs_thresh = 2												# Number of observations threshold
+	# Set filtering thresholds
+	wthresh = 1.5      # Bin weight threshold (dimensionless)
+	freq_thresh = 0.6  # Echo frequency threshold (dimensionless)
+	Z_H_thresh = 15.0  # Reflectivity threshold (dBZ)
+	nobs_thresh = 2    # Number of observations threshold
 	
 	# Extract dimension sizes
 	nx = (data0['x'])['n']
 	ny = (data0['y'])['n']
 	nz = (data0['z'])['n']
 	
-	echo_frequency = np.zeros((nz,ny,nx))					# Create array to compute frequency of radar obs in grid volume with echo
-
-	ipos = np.where(data0['nobs'] > 0)						# Find bins with obs 
-	npos = len(ipos[0])											# Count number of bins with obs
-
-	if (npos > 0):
-		echo_frequency[ipos] = (data0['necho'])[ipos]/(data0['nobs'])[ipos]		# Compute echo frequency (number of scans with echo out of total number of scans)
-
-	inan = np.where(np.isnan((data0['Z_H'])['values']))				# Find bins with NaNs 
-	nnan = len(inan[0])														# Count number of bins with NaNs
+	# Create array to compute frequency of radar obs in grid volume with echo
+	echo_frequency = np.zeros((nz, ny, nx))
 	
-	if (nnan > 0): ((data0['Z_H'])['values'])[inan] = 0.0
-
-	# Find observations with low weight
-	ifilter = np.where((((data0['Z_H'])['wvalues'] < wthresh    ) & ((data0['Z_H'])['values'] < Z_H_thresh)) |
-							  ((echo_frequency           < freq_thresh) &  (data0['nobs'] > nobs_thresh)))
+	# Find bins with observations and compute echo frequency
+	ipos = np.where(data0['nobs'] > 0)
+	npos = len(ipos[0])
+	if npos > 0:
+		# Compute echo frequency (number of scans with echo / total scans)
+		echo_frequency[ipos] = data0['necho'][ipos] / data0['nobs'][ipos]
 	
-	nfilter = len(ifilter[0])									# Count number of bins that need to be removed
+	# Temporarily replace NaNs with zeros for filtering
+	inan = np.where(np.isnan((data0['Z_H'])['values']))
+	nnan = len(inan[0])
+	if nnan > 0:
+		((data0['Z_H'])['values'])[inan] = 0.0
+	
+	# Find observations with low weight or low echo frequency
+	ifilter = np.where(
+		(((data0['Z_H'])['wvalues'] < wthresh) & ((data0['Z_H'])['values'] < Z_H_thresh)) |
+		((echo_frequency < freq_thresh) & (data0['nobs'] > nobs_thresh))
+	)
+	nfilter = len(ifilter[0])
 	
 	# Remove low confidence observations
-	if (nfilter > 0):
-		((data0['Z_H'])['values'])[ifilter] = float('nan')
-		((data0['SW' ])['values'])[ifilter] = float('nan')
+	if nfilter > 0:
+		((data0['Z_H'])['values'])[ifilter] = np.nan
+		((data0['SW'])['values'])[ifilter] = np.nan
 		
-		if (type(data0['AzShr']) is dict):
-			((data0['AzShr'])['values'])[ifilter] = float('nan')
-			((data0['Div'  ])['values'])[ifilter] = float('nan')			
+		if type(data0['AzShr']) is dict:
+			((data0['AzShr'])['values'])[ifilter] = np.nan
+			((data0['Div'])['values'])[ifilter] = np.nan
 		
-		if (type(data0['Z_DR']) is dict):
-			((data0['Z_DR'])['values'])[ifilter] = float('nan')
-			((data0['K_DP'])['values'])[ifilter] = float('nan')
-			((data0['r_HV'])['values'])[ifilter] = float('nan')
+		if type(data0['Z_DR']) is dict:
+			((data0['Z_DR'])['values'])[ifilter] = np.nan
+			((data0['K_DP'])['values'])[ifilter] = np.nan
+			((data0['r_HV'])['values'])[ifilter] = np.nan
 	
-	# Replace NaNs that were previously removed
-	if (nnan > 0): ((data0['Z_H'])['values'])[inan] = float('nan')
+	# Restore NaN values that were temporarily replaced
+	if nnan > 0:
+		((data0['Z_H'])['values'])[inan] = np.nan
 	
 	# Return filtered data0
 	return data0
 
 	
-def remove_clutter(data0, skip_weak_ll_echo=0):
-
-	# Import python libraries
-	import sys
-	import os
-	import numpy as np	
+def remove_clutter(data0, skip_weak_ll_echo=False):
+	"""
+	Remove ground clutter and biological scatterers from GridRad data.
+	
+	Parameters:
+	-----------
+	data0 : dict
+		GridRad data dictionary
+	skip_weak_ll_echo : bool
+		If False, remove weak low-level echo; if True, skip this step
+	"""
 	
 	# Set fractional areal coverage threshold for speckle identification
 	areal_coverage_thresh = 0.32
@@ -391,164 +395,147 @@ def remove_clutter(data0, skip_weak_ll_echo=0):
 	ny = (data0['y'])['n']
 	nz = (data0['z'])['n']
 	
-	# Copy altitude array to 3 dimensions
-	zzz = ((((data0['z'])['values']).reshape(nz,1,1)).repeat(ny, axis = 1)).repeat(nx, axis = 2)
-
-	# Light pass at a correlation coefficient decluttering approach first
-	if (type(data0['Z_DR']) is dict):
-		ibad = np.where((((data0['Z_H'])['values'] < 40.0) & ((data0['r_HV'])['values'] < 0.9)) | \
-                      (((data0['Z_H'])['values'] < 25.0) & ((data0['r_HV'])['values'] < 0.95) & (zzz >= 10.0)))
-		nbad = len(ibad[0])
-      
-		if (nbad > 0):
-			((data0['Z_H' ])['values'])[ibad] = float('nan')
-			((data0['SW'  ])['values'])[ibad] = float('nan')
-			((data0['Z_DR'])['values'])[ibad] = float('nan')
-			((data0['K_DP'])['values'])[ibad] = float('nan')
-			((data0['r_HV'])['values'])[ibad] = float('nan')
-		
-			if (type(data0['AzShr']) is dict):
-				((data0['AzShr'])['values'])[ibad] = float('nan')
-				((data0['Div'  ])['values'])[ibad] = float('nan')			
-		
+	# Get references to key arrays
+	zh_values = (data0['Z_H'])['values']
+	z_values = (data0['z'])['values']
+	
+	# Helper function to apply mask to all variables
+	def apply_mask_to_all(mask):
+		"""Apply NaN mask to all radar variables."""
+		if np.any(mask):
+			((data0['Z_H'])['values'])[mask] = np.nan
+			((data0['SW'])['values'])[mask] = np.nan
+			
+			if type(data0['AzShr']) is dict:
+				((data0['AzShr'])['values'])[mask] = np.nan
+				((data0['Div'])['values'])[mask] = np.nan
+			
+			if type(data0['Z_DR']) is dict:
+				((data0['Z_DR'])['values'])[mask] = np.nan
+				((data0['K_DP'])['values'])[mask] = np.nan
+				((data0['r_HV'])['values'])[mask] = np.nan
+	
+	def remove_speckles(threshold=areal_coverage_thresh):
+		"""Use uniform filter for efficient neighbor counting."""
+		fin = np.isfinite(zh_values)
+		# Use uniform filter (5x5 kernel in horizontal, no vertical smoothing)
+		cover = ndimage.uniform_filter(fin.astype(np.float32), size=(1, 5, 5), mode='wrap')
+		apply_mask_to_all(cover <= threshold)
+	
+	# Apply correlation coefficient filtering (if dual-pol data available)
+	if type(data0['Z_DR']) is dict:
+		# Use broadcasting to avoid creating full 3D array
+		z_broadcast = z_values.reshape(nz, 1, 1)
+		corr_mask = (
+			((zh_values < 40.0) & ((data0['r_HV'])['values'] < 0.9)) |
+			((zh_values < 25.0) & ((data0['r_HV'])['values'] < 0.95) & (z_broadcast >= 10.0))
+		)
+		apply_mask_to_all(corr_mask)
+	
 	# First pass at removing speckles
-	fin = np.isfinite((data0['Z_H'])['values'])
-	
-	# Compute fraction of neighboring points with echo
-	cover = np.zeros((nz,ny,nx))
-	for i in range(-2,3):
-		for j in range(-2,3):
-			cover += np.roll(np.roll(fin, i, axis=2), j, axis=1)
-	cover = cover/25.0
-	
-	# Find bins with low nearby areal echo coverage (i.e., speckles) and remove (set to NaN).
-	ibad = np.where(cover <= areal_coverage_thresh)
-	nbad = len(ibad[0])
-	if (nbad > 0): 
-		((data0['Z_H'])['values'])[ibad] = float('nan')
-		((data0['SW' ])['values'])[ibad] = float('nan')
-
-		if (type(data0['AzShr']) is dict):
-			((data0['AzShr'])['values'])[ibad] = float('nan')
-			((data0['Div'  ])['values'])[ibad] = float('nan')			
-		
-		if (type(data0['Z_DR']) is dict):
-			((data0['Z_DR'])['values'])[ibad] = float('nan')
-			((data0['K_DP'])['values'])[ibad] = float('nan')
-			((data0['r_HV'])['values'])[ibad] = float('nan')
+	remove_speckles(areal_coverage_thresh)
 
 
 	# Attempts to mitigate ground clutter and biological scatterers
-	if (skip_weak_ll_echo == 0):
-		# First check for weak, low-level echo
-		inan = np.where(np.isnan((data0['Z_H'])['values']))				# Find bins with NaNs 
-		nnan = len(inan[0])															# Count number of bins with NaNs
-	
-		if (nnan > 0): ((data0['Z_H'])['values'])[inan] = 0.0
-
-		# Find weak low-level echo and remove (set to NaN)
-		ibad = np.where(((data0['Z_H'])['values'] < 10.0) & (zzz <= 4.0))
+	if not skip_weak_ll_echo:
+		# Create z_broadcast for height comparisons (avoids creating large 3D array)
+		z_broadcast = z_values.reshape(nz, 1, 1)
+		
+		# Temporarily replace NaNs with zeros for processing
+		inan = np.where(np.isnan((data0['Z_H'])['values']))
+		nnan = len(inan[0])
+		if nnan > 0:
+			((data0['Z_H'])['values'])[inan] = 0.0
+		
+		# Find and remove weak low-level echo (< 10 dBZ below 4 km)
+		ibad = np.where(((data0['Z_H'])['values'] < 10.0) & (z_broadcast <= 4.0))
 		nbad = len(ibad[0])
-		if (nbad > 0): 
-			((data0['Z_H'])['values'])[ibad] = float('nan')
-			((data0['SW' ])['values'])[ibad] = float('nan')
-
-			if (type(data0['AzShr']) is dict):
-				((data0['AzShr'])['values'])[ibad] = float('nan')
-				((data0['Div'  ])['values'])[ibad] = float('nan')			
+		if nbad > 0:
+			((data0['Z_H'])['values'])[ibad] = np.nan
+			((data0['SW'])['values'])[ibad] = np.nan
+			
+			if type(data0['AzShr']) is dict:
+				((data0['AzShr'])['values'])[ibad] = np.nan
+				((data0['Div'])['values'])[ibad] = np.nan
+			
+			if type(data0['Z_DR']) is dict:
+				((data0['Z_DR'])['values'])[ibad] = np.nan
+				((data0['K_DP'])['values'])[ibad] = np.nan
+				((data0['r_HV'])['values'])[ibad] = np.nan
 		
-			if (type(data0['Z_DR']) is dict):
-				((data0['Z_DR'])['values'])[ibad] = float('nan')
-				((data0['K_DP'])['values'])[ibad] = float('nan')
-				((data0['r_HV'])['values'])[ibad] = float('nan')
+		# Restore NaN values
+		if nnan > 0:
+			((data0['Z_H'])['values'])[inan] = np.nan
 		
-		# Replace NaNs that were removed
-		if (nnan > 0): ((data0['Z_H'])['values'])[inan] = float('nan')
-
-		# Second check for weak, low-level echo
-		inan = np.where(np.isnan((data0['Z_H'])['values']))				# Find bins with NaNs 
-		nnan = len(inan[0])															# Count number of bins with NaNs
-	
-		if (nnan > 0): ((data0['Z_H'])['values'])[inan] = 0.0
-
-		refl_max   = np.nanmax( (data0['Z_H'])['values'],             axis=0)
-		echo0_max  = np.nanmax(((data0['Z_H'])['values'] >  0.0)*zzz, axis=0)
-		echo0_min  = np.nanmin(((data0['Z_H'])['values'] >  0.0)*zzz, axis=0)
-		echo5_max  = np.nanmax(((data0['Z_H'])['values'] >  5.0)*zzz, axis=0)
-		echo15_max = np.nanmax(((data0['Z_H'])['values'] > 15.0)*zzz, axis=0)
-
-		# Replace NaNs that were removed
-		if (nnan > 0): ((data0['Z_H'])['values'])[inan] = float('nan')
+		# Second pass: compute column statistics for shallow/weak echo detection
+		inan = np.where(np.isnan((data0['Z_H'])['values']))
+		nnan = len(inan[0])
+		if nnan > 0:
+			((data0['Z_H'])['values'])[inan] = 0.0
 		
-		# Find weak and/or shallow echo
-		ibad = np.where(((refl_max   <  20.0) & (echo0_max  <= 4.0) & (echo0_min  <= 3.0)) | \
-							 ((refl_max   <  10.0) & (echo0_max  <= 5.0) & (echo0_min  <= 3.0)) | \
-							 ((echo5_max  <=  5.0) & (echo5_max  >  0.0) & (echo15_max <= 3.0)) | \
-							 ((echo15_max <   2.0) & (echo15_max >  0.0)))
+		# Compute column-maximum reflectivity and echo top heights
+		refl_max = np.nanmax((data0['Z_H'])['values'], axis=0)
+		echo0_max = np.nanmax(((data0['Z_H'])['values'] > 0.0) * z_broadcast, axis=0)
+		echo0_min = np.nanmin(((data0['Z_H'])['values'] > 0.0) * z_broadcast, axis=0)
+		echo5_max = np.nanmax(((data0['Z_H'])['values'] > 5.0) * z_broadcast, axis=0)
+		echo15_max = np.nanmax(((data0['Z_H'])['values'] > 15.0) * z_broadcast, axis=0)
+		
+		# Restore NaN values
+		if nnan > 0:
+			((data0['Z_H'])['values'])[inan] = np.nan
+		
+		# Identify weak and/or shallow echo columns
+		ibad = np.where(
+			((refl_max < 20.0) & (echo0_max <= 4.0) & (echo0_min <= 3.0)) |
+			((refl_max < 10.0) & (echo0_max <= 5.0) & (echo0_min <= 3.0)) |
+			((echo5_max <= 5.0) & (echo5_max > 0.0) & (echo15_max <= 3.0)) |
+			((echo15_max < 2.0) & (echo15_max > 0.0))
+		)
 		nbad = len(ibad[0])
-		if (nbad > 0):
-			kbad = (np.zeros((nbad))).astype(int)
-			for k in range(0,nz):
-				((data0['Z_H'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-				((data0['SW' ])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-
-				if (type(data0['AzShr']) is dict):
-					((data0['AzShr'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-					((data0['Div'  ])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')			
 		
-				if (type(data0['Z_DR']) is dict):
-					((data0['Z_DR'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-					((data0['K_DP'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-					((data0['r_HV'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-
-
-	# Find clutter below convective anvils
-	k4km = ((np.where((data0['z'])['values'] >= 4.0))[0])[0]
-	fin  = np.isfinite((data0['Z_H'])['values'])
-	ibad = np.where((          fin[k4km         ,:,:]          == 0) & \
-							 (np.sum(fin[k4km:(nz  -1),:,:], axis=0) >  0) & \
-							 (np.sum(fin[   0:(k4km-1),:,:], axis=0) >  0))
-	nbad = len(ibad[0])
-	if (nbad > 0):
-		kbad = (np.zeros((nbad))).astype(int)
-		for k in range(0,k4km+1):
-			((data0['Z_H'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-			((data0['SW' ])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-
-			if (type(data0['AzShr']) is dict):
-				((data0['AzShr'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-				((data0['Div'  ])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')			
+		# Remove entire columns identified as weak/shallow
+		if nbad > 0:
+			kbad = np.zeros(nbad, dtype=int)
+			for k in range(nz):
+				((data0['Z_H'])['values'])[(k + kbad), ibad[0], ibad[1]] = np.nan
+				((data0['SW'])['values'])[(k + kbad), ibad[0], ibad[1]] = np.nan
+				
+				if type(data0['AzShr']) is dict:
+					((data0['AzShr'])['values'])[(k + kbad), ibad[0], ibad[1]] = np.nan
+					((data0['Div'])['values'])[(k + kbad), ibad[0], ibad[1]] = np.nan
+				
+				if type(data0['Z_DR']) is dict:
+					((data0['Z_DR'])['values'])[(k + kbad), ibad[0], ibad[1]] = np.nan
+					((data0['K_DP'])['values'])[(k + kbad), ibad[0], ibad[1]] = np.nan
+					((data0['r_HV'])['values'])[(k + kbad), ibad[0], ibad[1]] = np.nan
 	
-			if (type(data0['Z_DR']) is dict):
-				((data0['Z_DR'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-				((data0['K_DP'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
-				((data0['r_HV'])['values'])[(k+kbad),ibad[0],ibad[1]] = float('nan')
+	# Detect and remove clutter below convective anvils
+	k4km = np.argmax(z_values >= 4.0)
+	fin = np.isfinite(zh_values)
+	
+	# Find columns with gap at 4km but echo above and below (indicates low-level clutter)
+	bad_columns = (
+		~fin[k4km, :, :] & 
+		(np.sum(fin[k4km:nz, :, :], axis=0) > 0) & 
+		(np.sum(fin[0:k4km, :, :], axis=0) > 0)
+	)
+	
+	# Remove low-level clutter in these columns (vectorized)
+	if np.any(bad_columns):
+		((data0['Z_H'])['values'])[:k4km + 1, bad_columns] = np.nan
+		((data0['SW'])['values'])[:k4km + 1, bad_columns] = np.nan
+		
+		if type(data0['AzShr']) is dict:
+			((data0['AzShr'])['values'])[:k4km + 1, bad_columns] = np.nan
+			((data0['Div'])['values'])[:k4km + 1, bad_columns] = np.nan
+		
+		if type(data0['Z_DR']) is dict:
+			((data0['Z_DR'])['values'])[:k4km + 1, bad_columns] = np.nan
+			((data0['K_DP'])['values'])[:k4km + 1, bad_columns] = np.nan
+			((data0['r_HV'])['values'])[:k4km + 1, bad_columns] = np.nan
 	
 	# Second pass at removing speckles
-	fin = np.isfinite((data0['Z_H'])['values'])
-	
-	# Compute fraction of neighboring points with echo
-	cover = np.zeros((nz,ny,nx))
-	for i in range(-2,3):
-		for j in range(-2,3):
-			cover += np.roll(np.roll(fin, i, axis=2), j, axis=1)
-	cover = cover/25.0
-			
-	# Find bins with low nearby areal echo coverage (i.e., speckles) and remove (set to NaN).
-	ibad = np.where(cover <= areal_coverage_thresh)
-	nbad = len(ibad[0])
-	if (nbad > 0): 
-		((data0['Z_H'])['values'])[ibad] = float('nan')
-		((data0['SW' ])['values'])[ibad] = float('nan')
-
-		if (type(data0['AzShr']) is dict):
-			((data0['AzShr'])['values'])[ibad] = float('nan')
-			((data0['Div'  ])['values'])[ibad] = float('nan')			
-		
-		if (type(data0['Z_DR']) is dict):
-			((data0['Z_DR'])['values'])[ibad] = float('nan')
-			((data0['K_DP'])['values'])[ibad] = float('nan')
-			((data0['r_HV'])['values'])[ibad] = float('nan')
+	remove_speckles(areal_coverage_thresh)
 	
 	return data0
 

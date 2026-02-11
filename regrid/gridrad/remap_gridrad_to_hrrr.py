@@ -38,6 +38,8 @@ REMAP_METHOD = 'bilinear'  # 'conservative' or 'bilinear' (bilinear recommended 
 RUN_PARALLEL = True
 N_WORKERS = 32
 LOG_ZH = True  # Convert to linear units before remapping
+APPLY_FILTER = True  # Apply GridRad quality filter (removes low-weight observations)
+REMOVE_CLUTTER = True  # Remove ground clutter and biological scatterers
 
 
 def idbz(field):
@@ -134,7 +136,7 @@ def load_hrrr_grid(hrrr_file, method='bilinear'):
     return dest_grid
 
 
-def gridrad_to_xarray(gridrad_file, method='bilinear'):
+def gridrad_to_xarray(gridrad_file, method='bilinear', apply_filter=True, remove_clutter=True):
     """
     Read GridRad file and convert to xarray Dataset.
     
@@ -144,6 +146,10 @@ def gridrad_to_xarray(gridrad_file, method='bilinear'):
         Path to GridRad NetCDF file
     method : str
         Remapping method ('bilinear' or 'conservative')
+    apply_filter : bool
+        Apply GridRad quality filter (default: True)
+    remove_clutter : bool
+        Remove ground clutter and biological scatterers (default: True)
         
     Returns
     -------
@@ -152,6 +158,14 @@ def gridrad_to_xarray(gridrad_file, method='bilinear'):
     """
     # Read GridRad data using the gridrad library
     data = gridrad.read_file(gridrad_file)
+    
+    # Apply quality filter to remove low-weight observations
+    if apply_filter:
+        data = gridrad.filter(data)
+    
+    # Remove ground clutter, biological scatterers, and isolated speckles
+    if remove_clutter:
+        data = gridrad.remove_clutter(data, skip_weak_ll_echo=False)
     
     # Extract coordinates
     lon = data['x']['values'] - 360.0  # Convert to -180 to 180
@@ -239,7 +253,8 @@ def get_weight_file(source_grid, dest_grid, method, weight_dir):
 
 
 def remap_gridrad_file(gridrad_file, dest_grid, method='conservative', 
-                       output_dir=OUTPUT_DIR, weight_dir=WEIGHT_DIR):
+                       output_dir=OUTPUT_DIR, weight_dir=WEIGHT_DIR,
+                       apply_filter=True, remove_clutter=True):
     """
     Remap a single GridRad file to HRRR grid.
     
@@ -255,6 +270,10 @@ def remap_gridrad_file(gridrad_file, dest_grid, method='conservative',
         Output directory for remapped files
     weight_dir : str
         Directory for weight files
+    apply_filter : bool
+        Apply GridRad quality filter (default: True)
+    remove_clutter : bool
+        Remove ground clutter and biological scatterers (default: True)
         
     Returns
     -------
@@ -266,7 +285,7 @@ def remap_gridrad_file(gridrad_file, dest_grid, method='conservative',
     
     try:
         # Read GridRad data
-        source_ds = gridrad_to_xarray(gridrad_file, method)
+        source_ds = gridrad_to_xarray(gridrad_file, method, apply_filter, remove_clutter)
     except Exception as e:
         print(f"  ERROR reading GridRad file: {e}")
         raise
@@ -414,30 +433,30 @@ def remap_gridrad_file(gridrad_file, dest_grid, method='conservative',
     return output_file
 
 
-def process_files_serial(file_list, dest_grid, method, output_dir, weight_dir):
+def process_files_serial(file_list, dest_grid, method, output_dir, weight_dir, apply_filter, remove_clutter):
     """Process files in serial mode."""
     output_files = []
     for gridrad_file in file_list:
         try:
-            out_file = remap_gridrad_file(
-                gridrad_file, dest_grid, method, output_dir, weight_dir
+            output_file = remap_gridrad_file(
+                gridrad_file, dest_grid, method, output_dir, weight_dir, apply_filter, remove_clutter
             )
-            output_files.append(out_file)
+            output_files.append(output_file)
         except Exception as e:
             print(f"ERROR processing {gridrad_file}: {e}")
             continue
     return output_files
 
 
-def process_files_parallel(file_list, dest_grid, method, output_dir, weight_dir, n_workers):
+def process_files_parallel(file_list, dest_grid, method, output_dir, weight_dir, n_workers, apply_filter, remove_clutter):
     """Process files in parallel using Dask."""
     print(f"\nStarting Dask cluster with {n_workers} workers...")
     
     # Create Dask cluster
+    # Let Dask auto-detect memory limit based on available system memory
     cluster = LocalCluster(
         n_workers=n_workers,
         threads_per_worker=1,
-        memory_limit='8GB',
         silence_logs=False
     )
     client = Client(cluster)
@@ -452,7 +471,9 @@ def process_files_parallel(file_list, dest_grid, method, output_dir, weight_dir,
             dest_grid,
             method,
             output_dir,
-            weight_dir
+            weight_dir,
+            apply_filter,
+            remove_clutter
         )
         futures.append(future)
     
@@ -516,8 +537,22 @@ def main():
         default=HRRR_GRID_FILE,
         help=f'HRRR grid file (default: {HRRR_GRID_FILE})'
     )
+    parser.add_argument(
+        '--no-filter',
+        action='store_true',
+        help='Disable GridRad quality filter (default: filter enabled)'
+    )
+    parser.add_argument(
+        '--no-clutter-removal',
+        action='store_true',
+        help='Disable ground clutter removal (default: clutter removal enabled)'
+    )
     
     args = parser.parse_args()
+    
+    # Convert negative flags to positive boolean values
+    apply_filter = not args.no_filter
+    remove_clutter = not args.no_clutter_removal
     
     # Create output directories
     os.makedirs(args.output_dir, exist_ok=True)
@@ -546,6 +581,8 @@ def main():
     print(f"Input files: {len(file_list)}")
     print(f"HRRR grid: {args.hrrr_grid}")
     print(f"Remapping method: {args.method}")
+    print(f"Apply quality filter: {apply_filter}")
+    print(f"Remove clutter: {remove_clutter}")
     print(f"Output directory: {args.output_dir}")
     print(f"Weight directory: {args.weight_dir}")
     print(f"Parallel mode: {args.parallel and not args.serial}")
@@ -564,12 +601,12 @@ def main():
     if args.serial or not args.parallel:
         print("\nProcessing files in SERIAL mode...")
         output_files = process_files_serial(
-            file_list, dest_grid, args.method, args.output_dir, args.weight_dir
+            file_list, dest_grid, args.method, args.output_dir, args.weight_dir, apply_filter, remove_clutter
         )
     else:
         print("\nProcessing files in PARALLEL mode...")
         output_files = process_files_parallel(
-            file_list, dest_grid, args.method, args.output_dir, args.weight_dir, args.n_workers
+            file_list, dest_grid, args.method, args.output_dir, args.weight_dir, args.n_workers, apply_filter, remove_clutter
         )
     
     elapsed = time.time() - start_time
