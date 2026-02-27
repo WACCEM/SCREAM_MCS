@@ -316,7 +316,7 @@ if __name__ == '__main__':
         '--months',
         nargs='+',
         type=int,
-        default=[4, 5, 6, 7, 8],
+        default=[4, 5, 6, 7, 8, 9],
         metavar='M',
         help='Month numbers to include when scanning for files (1=Jan … 12=Dec).',
     )
