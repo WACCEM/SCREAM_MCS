@@ -45,11 +45,14 @@ rm -rf PET*.RegridWeightGen.Log #remove log files from previous time
 
 #------------------------
 inres="MRMS"
-outres="HRRR"
-remap_method="conserve"
+# outres="HRRR"
+outres="MergedIR"
+# remap_method="conserve"
+remap_method="bilinear"
 
 srcfile="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/SCRIP_MRMS.nc"
-dstfile="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/SCRIP_HRRR.nc"
+# dstfile="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/SCRIP_HRRR.nc"
+dstfile="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/SCRIP_MergedIR.nc"
 src_loc="center"  #center or corner
 
 mapdir=$workdir
