@@ -135,7 +135,7 @@ statistics, and produces a monthly MCS precipitation map file.
 **Input:** Per-year config YAMLs (from Step 1a) + pixel-tracking NetCDF files
 (`<root_path>/mcstracking/mcstrack_YYYYMM*.nc`)
 
-**Output:** Monthly `mcs_rainmap_YYYYMM*.nc` files under `<root_path>/monthly/`
+**Output:** Monthly `mcs_rainmap_YYYYMM*.nc` files under `<root_path>/stats/monthly/`
 
 **Peak memory:** ~6 GB per task (measured; see
 `tracking_decadal/logs/log_mcs_monthly_rainmap_SCREAM_decadal.log`).
@@ -175,7 +175,19 @@ precipitation fraction, MCS precipitation frequency, MCS precipitation intensity
 cloud frequency; also computes the interannual standard deviation of annual means for each
 variable.
 
-**Input:** Monthly `mcs_rainmap_YYYYMM*.nc` files (Step 2a output)
+**Gathering monthly files across years:** After Step 2a, the monthly `mcs_rainmap_*.nc`
+files live under each year's `stats/monthly/` directory (`<root_path>` is per-year). Create
+a single `monthly/` directory under each simulation set / OBS parent directory and symlink
+(or copy) all years' files into it, so the climatology script can read them through one
+`--indir`:
+
+```bash
+# e.g. /pscratch/sd/f/feng045/SCREAM-decadal/ne256/tune/monthly
+cd <source>/monthly
+ln -s ../*/stats/monthly/mcs_rainmap_*.nc .
+```
+
+**Input:** Gathered monthly `mcs_rainmap_YYYYMM*.nc` files (Step 2a output)
 
 **Output:** `mcs_rainmap_monthly_climo_{YYYYMM}_{YYYYMM}.nc` in `--outdir`
 
