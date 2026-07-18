@@ -14,7 +14,7 @@
 
 installdir="/global/common/software/m1867/ESMF"
 blddir="/global/cfs/cdirs/wcm_code/shared_tools/ESMF/bld"
-workdir="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps" #recommend scratch space
+workdir="/global/cfs/cdirs/m1867/zfeng/E3SM/SCREAMv1/cess2/maps" #recommend scratch space
 
 
 tgtsys="pm"
@@ -47,12 +47,12 @@ rm -rf PET*.RegridWeightGen.Log #remove log files from previous time
 inres="MRMS"
 # outres="HRRR"
 outres="MergedIR"
-# remap_method="conserve"
-remap_method="bilinear"
+remap_method="conserve"
+# remap_method="bilinear"
 
-srcfile="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/SCRIP_MRMS.nc"
-# dstfile="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/SCRIP_HRRR.nc"
-dstfile="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/SCRIP_MergedIR.nc"
+srcfile="/global/cfs/cdirs/m1867/zfeng/E3SM/SCREAMv1/cess2/maps/SCRIP_MRMS.nc"
+# dstfile="/global/cfs/cdirs/m1867/zfeng/E3SM/SCREAMv1/cess2/maps/SCRIP_HRRR.nc"
+dstfile="/global/cfs/cdirs/m1867/zfeng/E3SM/SCREAMv1/cess2/maps/SCRIP_MergedIR.nc"
 src_loc="center"  #center or corner
 
 mapdir=$workdir

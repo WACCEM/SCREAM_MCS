@@ -18,7 +18,7 @@
 ; instead, load the climate-utils module, which makes NCL Version 6.6.2 available
 ; then invoke the NCL command along with this script name:
 ; $> module load climate-utils
-; $> ncl NCLtomakeSCRIP.ncl
+; $> ncl make_MergedIR_SCRIP.ncl
 ;----------------------------------------------------------------------
 load "$NCARG_ROOT/lib/ncarg/nclscripts/esmf/ESMF_regridding.ncl"
 
@@ -29,8 +29,8 @@ gridname = "MergedIR"  ; I usualy gives a descrptive name for the grid
 
 ;file name (latlonfile) and directory path (inputdir)for the input file, which 
 ;contains lat, lon, and optionally masking arrays
-inputdir ="/global/cfs/cdirs/m1867/zfeng/E3SM/SCREAMv1/cess2/maps"  
-latlonfile = "mergedir4km_grid.nc"
+inputdir ="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps"  
+latlonfile = "mergedir4km_grid_conus.nc"
 
 ; more details about the target grid    
 latname =  "lat" ; name of the variable lat in the latlonfile
@@ -58,7 +58,7 @@ GridType   = "rectilinear" ; choose from:
 ;isegional = True ; regional grid or not; False for global grid
 
 ;directory path, where to save the new SCRIP file for the target grid 
-tgtSCRIPdir ="/global/cfs/cdirs/m1867/zfeng/E3SM/SCREAMv1/cess2/maps"
+tgtSCRIPdir ="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps"
 ; tgtSCRIPdir ="/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps"
 
 ;output SCRIP file name. 

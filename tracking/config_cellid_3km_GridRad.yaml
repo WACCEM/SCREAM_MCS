@@ -37,7 +37,8 @@ databasename: GridRad_HRRR_  # Note: include all strings before the time (includ
 # Tracking input files directory
 clouddata_path: /pscratch/sd/i/iclas2/GridRad/regrid_hrrr/
 # Working directory for the tracking data
-root_path: /pscratch/sd/i/iclas2/GridRad/cell_conus/
+# root_path: /pscratch/sd/i/iclas2/GridRad/cell_conus/
+root_path: /pscratch/sd/i/iclas2/GridRad/cell_conus_nofilter/
 # Working sub-directory names
 tracking_path_name: tracking
 stats_path_name: stats

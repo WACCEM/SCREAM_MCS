@@ -20,12 +20,28 @@ import re
 from datetime import datetime
 from collections import defaultdict
 
-# Configuration
-input_dir = '/pscratch/sd/i/iclas2/meng/mrms/conus_2021_netcdf/MRMS_MergedReflectivityQC_L33/'
-batch_dir = '/pscratch/sd/i/iclas2/MRMS/batches_hourly'
-# ~1/12 of the 5-min batch size (2816 / 12 ≈ 234)
-# Keeps per-job wall-clock time roughly consistent with the 5-min processing runs
-files_per_batch = 234
+
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Split MRMS hourly file list into batches for parallel SLURM processing. "
+                    "Works for any MRMS product with hourly files.")
+    parser.add_argument('--input_dir', type=str, required=True,
+                        help='Input directory containing MRMS files')
+    parser.add_argument('--file_pattern', type=str, required=True,
+                        help='Glob pattern for MRMS files, e.g. MRMS_MergedReflectivityQC_L33_*.nc')
+    parser.add_argument('--batch_dir', type=str, required=True,
+                        help='Directory to save batch lists')
+    parser.add_argument('--files_per_batch', type=int, default=234,
+                        help='Number of files per batch (default: 234)')
+    return parser.parse_args()
+
+args = parse_args()
+input_dir = args.input_dir
+file_pattern = args.file_pattern
+batch_dir = args.batch_dir
+files_per_batch = args.files_per_batch
 
 # Create batch directory
 os.makedirs(batch_dir, exist_ok=True)
@@ -33,22 +49,34 @@ os.makedirs(batch_dir, exist_ok=True)
 # ──────────────────────────────────────────────────────────────────────────────
 # Step 1: Collect all MRMS files
 # ──────────────────────────────────────────────────────────────────────────────
-print("Scanning for MRMS files...")
-mrms_files = sorted(glob.glob(f"{input_dir}/MRMS_MergedReflectivityQC_L33_*.nc"))
+
+print(f"Scanning for MRMS files in {input_dir} matching {file_pattern} ...")
+mrms_files = sorted(glob.glob(os.path.join(input_dir, file_pattern)))
 total_files = len(mrms_files)
 
 if total_files == 0:
-    print(f"ERROR: No MRMS files found in {input_dir}")
+    print(f"ERROR: No MRMS files found in {input_dir} with pattern {file_pattern}")
     exit(1)
 
-print(f"Found {total_files:,} total MRMS files (5-min resolution)")
+print(f"Found {total_files:,} total MRMS files")
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Step 2: Parse timestamps and group by (year, month, day, hour)
-# Filename pattern: MRMS_MergedReflectivityQC_L33_YYYYMMDD-HHmmss.nc
-# ──────────────────────────────────────────────────────────────────────────────
+
+# Try to extract the prefix for batch file naming (everything before the first date block)
+def extract_prefix(basename):
+    m = re.match(r'(.+?)_\d{8}-\d{6}\.nc$', basename)
+    if m:
+        return m.group(1)
+    # fallback: up to first date-like string
+    m = re.match(r'(.+?)(\d{8}-\d{6})', basename)
+    if m:
+        return m.group(1).rstrip('_')
+    return 'MRMS_UNKNOWN'
+
+# Robust timestamp pattern: find 8 digits, dash, 6 digits, before .nc
 timestamp_pattern = re.compile(r'(\d{8})-(\d{6})\.nc$')
-hourly_groups = defaultdict(list)  # {(Y, M, D, H): [(seconds_from_hour, filepath), ...]}
+hourly_groups = defaultdict(list)
 skipped = 0
 
 for filepath in mrms_files:
@@ -58,7 +86,11 @@ for filepath in mrms_files:
         skipped += 1
         continue
     date_str, time_str = match.groups()
-    dt = datetime.strptime(f"{date_str}{time_str}", "%Y%m%d%H%M%S")
+    try:
+        dt = datetime.strptime(f"{date_str}{time_str}", "%Y%m%d%H%M%S")
+    except Exception as e:
+        skipped += 1
+        continue
     hour_key = (dt.year, dt.month, dt.day, dt.hour)
     seconds_from_hour = dt.minute * 60 + dt.second
     hourly_groups[hour_key].append((seconds_from_hour, filepath))
@@ -69,6 +101,7 @@ if skipped:
 # ──────────────────────────────────────────────────────────────────────────────
 # Step 3: Select the single file closest to :00:00 for each hour
 # ──────────────────────────────────────────────────────────────────────────────
+
 print("Selecting file closest to :00:00 for each hour...")
 hourly_files = []
 for hour_key in sorted(hourly_groups.keys()):
@@ -83,8 +116,12 @@ print(f"Selected {len(hourly_files):,} hourly files "
 # ──────────────────────────────────────────────────────────────────────────────
 # Step 4: Split into batches and write batch file lists
 # ──────────────────────────────────────────────────────────────────────────────
+
 num_batches = (len(hourly_files) + files_per_batch - 1) // files_per_batch
 print(f"\nSplitting into {num_batches} batches ({files_per_batch} files per batch)")
+
+# Use prefix for batch file naming
+prefix = extract_prefix(os.path.basename(hourly_files[0])) if hourly_files else 'MRMS_UNKNOWN'
 
 for batch_num in range(num_batches):
     start_idx = batch_num * files_per_batch
@@ -92,7 +129,7 @@ for batch_num in range(num_batches):
     batch_files = hourly_files[start_idx:end_idx]
 
     # Write batch file list — basenames only (shell script prepends directory)
-    batch_file = f"{batch_dir}/mrms_batch_{batch_num + 1:02d}.txt"
+    batch_file = f"{batch_dir}/{prefix}_batch_{batch_num + 1:02d}.txt"
     with open(batch_file, 'w') as f:
         for filepath in batch_files:
             f.write(f"{os.path.basename(filepath)}\n")
