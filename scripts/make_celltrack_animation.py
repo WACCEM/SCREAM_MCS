@@ -144,8 +144,19 @@ frame_stride = 1       # use every Nth PNG (2 = every second PNG): the other way
 video_fps = None       # frame rate of the video file. None = automatic: playback_fps repeated to at least 10 fps with a whole
                        # number of repeats per PNG. It does not change the speed; players handle very low frame rates badly,
                        # so every PNG is repeated. Keep it a whole multiple of playback_fps (below it, PNGs are dropped)
-video_quality = 20     # CRF value (lower = better quality, range 0-51, 18-28 is good)
-output_width = 1920    # Output video width in pixels (height auto-calculated to maintain aspect ratio, set to None to keep original size)
+video_quality = 24     # CRF value of libx264 (lower = better quality and larger file, range 0-51; 18-28 is the useful range).
+                       # +6 CRF is about half the file size. Measured on one day (288 frames, 1920 px) against the source PNGs:
+                       #   CRF 20: 33.7 MB (SSIM 0.9952, the earlier setting)   CRF 22: 28.2 MB (0.9935)
+                       #   CRF 24: 23.5 MB (0.9911, -30 %, thin lines and markers look the same)
+                       #   CRF 26: 19.2 MB (0.9878, -43 %, thin lines start to look softer)
+                       # To get the earlier files back: 20.
+output_width = 1920    # Output video width in pixels (height auto-calculated to maintain aspect ratio, set to None to keep original size).
+                       # The PNGs are 3000 px wide. 1600 makes the file another 30 % smaller at CRF 24 (23.5 -> 16.7 MB per day,
+                       # the map is slightly softer); None keeps 3000 px (several times larger).
+video_preset = 'slow'  # x264 speed / compression trade-off: ultrafast ... veryfast, faster, fast, medium (x264 default), slow,
+                       # slower, veryslow. A slower preset makes a smaller file at the same CRF; here only 1 % (CRF 24: medium
+                       # 23.7 MB, slow 23.5, slower 23.3) and the encoding time was the same, because reading the PNGs
+                       # takes most of it. To turn off: 'medium' (what ffmpeg does without -preset), or None (no -preset option).
 
 # Animation parameters
 start_date_str = start_date[:13]  # Extract YYYY-MM-DDTHH
@@ -333,14 +344,17 @@ if run_ffmpeg:
             '-r', str(video_fps_used),  # output: frame rate of the video file (PNGs are repeated to reach it)
             '-crf', str(video_quality),
             '-pix_fmt', 'yuv420p',
-            '-y', animation_filename
         ]
-        
+        # x264 preset (None = ffmpeg's default, medium)
+        if video_preset is not None:
+            ffmpeg_cmd.extend(['-preset', str(video_preset)])
+        ffmpeg_cmd.extend(['-y', animation_filename])
+
         print(f"🎬 Animation settings:")
         print(f"   Playback: {playback_fps} PNGs per second (speed), every {frame_stride}th PNG, "
               f"video file {video_fps_used:g} fps (each PNG repeated {video_fps_used / playback_fps:g} times)")
         print(f"   Duration: {len(expected_files) / playback_fps:.0f} s")
-        print(f"   Video quality (CRF): {video_quality} (lower=better)")
+        print(f"   Video quality (CRF): {video_quality} (lower=better), x264 preset {video_preset}")
         print(f"   Output width: {output_width if output_width else 'original'} pixels (height auto-scaled)")
         print(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
         print(f"Using {len(expected_files)} PNG files from {expected_files[0]} to {expected_files[-1]}")
