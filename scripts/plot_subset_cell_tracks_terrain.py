@@ -14,6 +14,9 @@ Optional arguments:
 --radar_lon           Radar longitude (defaults to domain center)
 -p, --parallel        Run in parallel (0:serial, 1:parallel, default=0)
 --workers             Number of Dask workers for parallel processing (default=4)
+--batch_size          Frames per batch in parallel mode (default: 4 x workers). The frames are processed batch by
+                      batch; each batch gets only the tracks active in its time window, sent once to the workers.
+                      Needed for many frames (a month of 5-min data) so that workers do not run out of memory.
 --extent              Map extent: lonmin lonmax latmin latmax
 --subset              Subset data before plotting (0:no, 1:yes, default=0)
 --figbasename         Output figure base name (default="")
@@ -37,6 +40,35 @@ Optional arguments:
 --show_city           Overplot city locations as filled diamonds with labels (0:no, 1:yes, default=0)
 --show_nexrad         Overplot NEXRAD locations as filled circles with labels (0:no, 1:yes, default=0)
 --nexrad_radius       Radius in km for NEXRAD range circle (default=150, 0:no circle)
+--show_cell_numbers   Write the cell track numbers on the map (0:no, 1:yes, default=1; unreadable on a whole-CONUS map)
+Cell style (the single-cell equivalents of the --multicell_* options of plot_subset_cell_mcs_tracks_terrain.py;
+the defaults give the picture of earlier versions):
+--show_cell_outline   Draw the cell perimeters (0:no, 1:yes, default=1)
+--cell_color          Perimeter color (default=k, black)
+--cell_perim_alpha    Perimeter transparency (default=0.6)
+--cell_perim_width    Perimeter width in grid cells (default=1)
+--cell_halo           Color of a 1-cell ring drawn just outside the perimeters (default: none), e.g. a dark ring
+                      around white perimeters so that they show on any background
+--cell_perim_cmap     Colormap name (colorcet, e.g. glasbey_dark, or matplotlib) for the perimeters, so that every
+                      cell track has its own color; the color of a track is its track number modulo the number of
+                      colors, so it does not change between frames. Default: one color (--cell_color) for all.
+--cell_track_color    Track path color (default=k, black)
+--cell_track_lw       Track path line width [points] (default: 1, set per track lifetime in plot_info['lw_centroid'])
+--cell_track_ls       Track path line style (default='-'; e.g. '--', ':')
+--cell_min_hours      Draw only cells of tracks that live at least this long [hour] (default=0: all): perimeter,
+                      path, symbols and number
+--grid_linewidth      Line width of the lat/lon gridlines (default=0: only the labels are drawn)
+--grid_linestyle      Line style of the gridlines (default='--'; e.g. ':' dotted)
+--grid_alpha          Transparency of the gridlines (default=1; the lines are black)
+--show_terrain        Draw the terrain background (0:no, 1:yes, default=1)
+Map projection:
+--projection          PlateCarree (default), LambertConformal, AlbersEqualArea or Mercator
+--central_longitude   Optional projection central longitude (degree east or west)
+--central_latitude    Optional projection central latitude (LambertConformal, AlbersEqualArea)
+--standard_parallels  Optional 1 or 2 standard parallels (LambertConformal, AlbersEqualArea)
+                      (parameters that are not given are the cartopy defaults). With a projection other than
+                      PlateCarree and no --extent the axes show the whole pixel-level domain, and the figure
+                      height follows the projected extent. (Ported from plot_subset_cell_mcs_tracks_terrain.py.)
 """
 __author__ = "Zhe.Feng@pnnl.gov"
 __created_date__ = "08-Jun-2022"
@@ -47,12 +79,13 @@ import os, sys
 import xarray as xr
 import pandas as pd
 import math
-from scipy.ndimage import binary_erosion, generate_binary_structure
+from scipy.ndimage import binary_erosion, binary_dilation, generate_binary_structure, find_objects
 import datetime
 import copy
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from matplotlib.colors import ListedColormap
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -61,12 +94,107 @@ from cartopy.geodesic import Geodesic
 # For non-gui matplotlib back end
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 mpl.use('agg')
-import dask
-from dask.distributed import Client, LocalCluster
 import warnings
 warnings.filterwarnings("ignore")
 from pyflextrkr.ft_utilities import load_config
 from pyflextrkr.ft_utilities import load_config, subset_files_timerange
+# batched parallel plotting (same folder)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import plot_batches
+
+# Map projections: name -> (cartopy class, optional arguments it accepts)
+PROJECTIONS = {
+    'platecarree': (ccrs.PlateCarree, ('central_longitude',)),
+    'mercator': (ccrs.Mercator, ('central_longitude',)),
+    'lambertconformal': (ccrs.LambertConformal, ('central_longitude', 'central_latitude', 'standard_parallels')),
+    'albersequalarea': (ccrs.AlbersEqualArea, ('central_longitude', 'central_latitude', 'standard_parallels')),
+}
+
+# Figure layout: one map column and one (vertical) colorbar column, used by plot_map and by figsize_for_aspect
+LAYOUT = dict(left=0.1, right=0.9, top=0.92, bottom=0.08, wspace=0.05, hspace=0.05, width_ratios=[1, 0.03])
+
+#-----------------------------------------------------------------------
+def projection_key(name):
+    """Normalized key of a projection name, e.g. 'Lambert_Conformal' -> 'lambertconformal'."""
+    key = str(name).lower().replace('_', '').replace('-', '').replace(' ', '')
+    if key not in PROJECTIONS:
+        raise ValueError(f"Unknown projection '{name}', choose from {sorted(PROJECTIONS)}")
+    return key
+
+def make_projection(name, central_longitude=None, central_latitude=None, standard_parallels=None):
+    """
+    Make a cartopy projection. Only the parameters that are given (not None) are passed on, the
+    others are the cartopy defaults of that projection. A parameter the projection does not accept
+    is an error (it would otherwise be silently ignored).
+    """
+    key = projection_key(name)
+    cls, accepted = PROJECTIONS[key]
+    given = {'central_longitude': central_longitude, 'central_latitude': central_latitude,
+             'standard_parallels': None if standard_parallels is None else tuple(standard_parallels)}
+    kwargs = {}
+    for k, v in given.items():
+        if v is None:
+            continue
+        if k not in accepted:
+            raise ValueError(f"--{k} is not used by the {cls.__name__} projection (accepts: {', '.join(accepted)})")
+        kwargs[k] = v
+    return cls(**kwargs)
+
+def norm_lon(lon):
+    """Longitude in -180..180 (the file longitudes are 0-360)."""
+    return ((np.asarray(lon, dtype=float) + 180.0) % 360.0) - 180.0
+
+def get_cmap_colors(name):
+    """
+    Colors of a colormap by name as an (N, 4) RGBA array: colorcet names first (e.g. 'glasbey_dark'),
+    then matplotlib names.
+    """
+    cmap = None
+    try:
+        import colorcet as cc
+        if name in cc.cm:
+            cmap = cc.cm[name]
+    except ImportError:
+        pass
+    if cmap is None:
+        try:
+            cmap = plt.get_cmap(name)
+        except ValueError:
+            raise ValueError(f"Colormap '{name}' is neither a colorcet nor a matplotlib colormap")
+    # integer arguments index the lookup table, so all N colors in order
+    return np.asarray(cmap(np.arange(cmap.N)))
+
+def projected_extent(proj, map_extent=None, lon=None, lat=None, npts=100):
+    """
+    Bounds [xmin, xmax, ymin, ymax] in projection coordinates of a lon/lat box (its edges are sampled, so
+    the curved edges are included), or, if map_extent is None, of the 2D lon/lat arrays of the data grid.
+    """
+    src = ccrs.PlateCarree(central_longitude=0)
+    if map_extent is None:
+        x, y = norm_lon(lon).ravel(), np.asarray(lat, dtype=float).ravel()
+    else:
+        lon0 = norm_lon(map_extent[0])
+        lon1 = norm_lon(map_extent[1])
+        if lon1 < lon0:
+            lon1 += 360.0
+        lons = np.linspace(lon0, lon1, npts)
+        lats = np.linspace(map_extent[2], map_extent[3], npts)
+        x = np.r_[lons, lons, np.full(npts, lon0), np.full(npts, lon1)]
+        y = np.r_[np.full(npts, map_extent[2]), np.full(npts, map_extent[3]), lats, lats]
+    pts = proj.transform_points(src, x, y)[:, :2]
+    ok = np.isfinite(pts).all(axis=1)
+    return [pts[ok, 0].min(), pts[ok, 0].max(), pts[ok, 1].min(), pts[ok, 1].max()]
+
+def figsize_for_aspect(figsize_x, aspect_yx):
+    """
+    Figure size [width, height] in inches such that the map axes of LAYOUT have the height/width
+    ratio aspect_yx (projection coordinates, equal scale in x and y).
+    """
+    ncols = len(LAYOUT['width_ratios'])
+    cell_w = (LAYOUT['right'] - LAYOUT['left']) / (ncols + LAYOUT['wspace'] * (ncols - 1))
+    map_w = cell_w * ncols * LAYOUT['width_ratios'][0] / sum(LAYOUT['width_ratios'])   # fraction of figure width
+    map_h = LAYOUT['top'] - LAYOUT['bottom']                                            # fraction of figure height
+    return [float(figsize_x), float(round(figsize_x * map_w * aspect_yx / map_h, 2))]
 
 #-----------------------------------------------------------------------
 def parse_cmd_args():
@@ -79,6 +207,7 @@ def parse_cmd_args():
     parser.add_argument("-c", "--config", help="yaml config file for tracking", required=True)
     parser.add_argument("-p", "--parallel", help="flag to run in parallel (0:serial, 1:parallel)", type=int, default=0)
     parser.add_argument("--workers", type=int, help="Number of Dask workers for parallel processing", default=4)
+    parser.add_argument("--batch_size", type=int, help="Frames per batch in parallel mode (default: 4 x workers)", default=None)
     parser.add_argument("--radar_lat", help="radar latitude (optional, defaults to domain center)", type=float, default=None)
     parser.add_argument("--radar_lon", help="radar longitude (optional, defaults to domain center)", type=float, default=None)
     parser.add_argument("--extent", nargs='+', help="map extent (lonmin, lonmax, latmin, latmax)", type=float, default=None)
@@ -104,6 +233,25 @@ def parse_cmd_args():
     parser.add_argument("--show_city", type=int, help="Overplot city locations (0:no, 1:yes)", default=0)
     parser.add_argument("--show_nexrad", type=int, help="Overplot NEXRAD locations (0:no, 1:yes)", default=0)
     parser.add_argument("--nexrad_radius", type=float, help="NEXRAD range circle radius in km (default=150, 0:no circle)", default=150)
+    parser.add_argument("--show_cell_numbers", type=int, help="Write the cell track numbers on the map (0:no, 1:yes)", default=1)
+    parser.add_argument("--show_cell_outline", type=int, help="Draw the cell perimeters (0:no, 1:yes)", default=1)
+    parser.add_argument("--cell_color", help="Cell perimeter color (default: k)", default=None)
+    parser.add_argument("--cell_perim_alpha", type=float, help="Cell perimeter transparency (default: 0.6)", default=None)
+    parser.add_argument("--cell_perim_width", type=int, help="Cell perimeter width in grid cells (default: 1)", default=1)
+    parser.add_argument("--cell_halo", help="Color of a ring just outside the cell perimeters (default: none)", default=None)
+    parser.add_argument("--cell_perim_cmap", help="Colormap name for the cell perimeters: one color per track (e.g. glasbey_dark)", default=None)
+    parser.add_argument("--cell_track_color", help="Cell track path color (default: k)", default=None)
+    parser.add_argument("--cell_track_lw", type=float, help="Cell track path width (default: 1)", default=None)
+    parser.add_argument("--cell_track_ls", help="Cell track path line style (default: '-')", default='-')
+    parser.add_argument("--cell_min_hours", type=float, help="Draw only cells of tracks that live at least this long [hour] (default: 0 = all)", default=0.0)
+    parser.add_argument("--grid_linewidth", type=float, help="Line width of the lat/lon gridlines (0: labels only)", default=0.0)
+    parser.add_argument("--grid_linestyle", help="Line style of the gridlines (e.g. '--', ':')", default='--')
+    parser.add_argument("--grid_alpha", type=float, help="Transparency of the gridlines", default=1.0)
+    parser.add_argument("--show_terrain", type=int, help="Draw the terrain background (0:no, 1:yes)", default=1)
+    parser.add_argument("--projection", help="Map projection: PlateCarree, LambertConformal, AlbersEqualArea, Mercator", default="PlateCarree")
+    parser.add_argument("--central_longitude", type=float, help="Projection central longitude (optional)", default=None)
+    parser.add_argument("--central_latitude", type=float, help="Projection central latitude (optional)", default=None)
+    parser.add_argument("--standard_parallels", nargs='+', type=float, help="One or two standard parallels (optional)", default=None)
     args = parser.parse_args()
 
     # Put arguments in a dictionary
@@ -112,6 +260,7 @@ def parse_cmd_args():
         'end_datetime': args.end,
         'run_parallel': args.parallel,
         'workers': args.workers,
+        'batch_size': args.batch_size,
         'config_file': args.config,
         'radar_lat': args.radar_lat,
         'radar_lon': args.radar_lon,
@@ -138,58 +287,113 @@ def parse_cmd_args():
         'show_city': args.show_city,
         'show_nexrad': args.show_nexrad,
         'nexrad_radius': args.nexrad_radius,
+        'show_cell_numbers': args.show_cell_numbers,
+        'show_cell_outline': args.show_cell_outline,
+        'cell_color': args.cell_color,
+        'cell_perim_alpha': args.cell_perim_alpha,
+        'cell_perim_width': args.cell_perim_width,
+        'cell_halo': args.cell_halo,
+        'cell_perim_cmap': args.cell_perim_cmap,
+        'cell_track_color': args.cell_track_color,
+        'cell_track_lw': args.cell_track_lw,
+        'cell_track_ls': args.cell_track_ls,
+        'cell_min_hours': args.cell_min_hours,
+        'grid_linewidth': args.grid_linewidth,
+        'grid_linestyle': args.grid_linestyle,
+        'grid_alpha': args.grid_alpha,
+        'show_terrain': args.show_terrain,
+        'projection': args.projection,
+        'central_longitude': args.central_longitude,
+        'central_latitude': args.central_latitude,
+        'standard_parallels': args.standard_parallels,
     }
 
     return args_dict
 
 
 #-----------------------------------------------------------------------
-def label_perimeter(tracknumber, dilationstructure):
+def label_perimeter(tracknumber, dilationstructure, width=1, outer=False):
     """
     Labels the perimeter on a 2D map from object tracknumber masks.
+
+    width: perimeter width in pixels (the perimeter is thickened inward, so it
+           stays inside the object and does not cover neighboring objects)
+    outer: True = the ring of `width` pixels just outside the object instead
+
+    Every object is processed in its own bounding box (padded by width + 1), the result is the same as processing the
+    whole grid for every object, but 50-300 objects per frame no longer cost 50-300 full-grid operations.
     """
+    valid = ~np.isnan(tracknumber)
     # Get unique tracknumbers that is no nan
-    tracknumber_unique = np.unique(tracknumber[~np.isnan(tracknumber)]).astype(np.int32)
+    tracknumber_unique = np.unique(tracknumber[valid]).astype(np.int32)
 
     # Make an array to store the perimeter
     tracknumber_perim = np.zeros(tracknumber.shape, dtype=np.int32)
+    if tracknumber_unique.size == 0:
+        return tracknumber_perim
+
+    # Bounding box of every object (label k is slices[k - 1])
+    slices = find_objects(np.where(valid, tracknumber, 0).astype(np.int64))
+    ny, nx = tracknumber.shape
+    pad = width + 1
 
     # Loop over each tracknumbers
     for ii in tracknumber_unique:
+        sl = slices[ii - 1] if 1 <= ii <= len(slices) else None
+        if sl is None:
+            ys, xs = slice(0, ny), slice(0, nx)       # label 0 or no box: whole grid
+        else:
+            ys = slice(max(sl[0].start - pad, 0), min(sl[0].stop + pad, ny))
+            xs = slice(max(sl[1].start - pad, 0), min(sl[1].stop + pad, nx))
         # Isolate the cell mask
-        itn = tracknumber == ii
-        # Erode the cell by 1 pixel
-        itn_erode = binary_erosion(itn, structure=dilationstructure).astype(itn.dtype)
-        # Subtract the eroded area to get the perimeter
-        iperim = np.logical_xor(itn, itn_erode)
+        itn = tracknumber[ys, xs] == ii
+        if outer:
+            # Ring outside the object
+            iperim = np.logical_and(binary_dilation(itn, structure=dilationstructure, iterations=width), ~itn)
+        else:
+            # Erode the cell by `width` pixels
+            itn_erode = binary_erosion(itn, structure=dilationstructure, iterations=width).astype(itn.dtype)
+            # Subtract the eroded area to get the perimeter
+            iperim = np.logical_xor(itn, itn_erode)
         # Label the perimeter pixels with the track number
-        tracknumber_perim[iperim == 1] = ii
+        sub = tracknumber_perim[ys, xs]
+        sub[iperim == 1] = ii
 
     return tracknumber_perim
 
 #-----------------------------------------------------------------------
 def calc_cell_center(tracknumber, longitude, latitude, xx, yy):
     """
-    Calculates the center location from labeled cells.
+    Calculates the center location from labeled cells (every object in its own bounding box; same values as
+    averaging over the whole grid).
     """
-    
+
+    valid = ~np.isnan(tracknumber)
     # Find unique tracknumbers
-    tracknumber_uniqe = np.unique(tracknumber[~np.isnan(tracknumber)])
+    tracknumber_uniqe = np.unique(tracknumber[valid])
     num_tracknumber = len(tracknumber_uniqe)
     # Make arrays for cell center locations
     lon_c = np.full(num_tracknumber, np.nan, dtype=float)
     lat_c = np.full(num_tracknumber, np.nan, dtype=float)
     xx_c = np.full(num_tracknumber, np.nan, dtype=float)
     yy_c = np.full(num_tracknumber, np.nan, dtype=float)
+    if num_tracknumber == 0:
+        return lon_c, lat_c, xx_c, yy_c, tracknumber_uniqe
+    slices = find_objects(np.where(valid, tracknumber, 0).astype(np.int64))
 
     # Loop over each tracknumbers to calculate the mean lat/lon & x/y for their center locations
     for ii, itn in enumerate(tracknumber_uniqe):
-        iyy, ixx = np.where(tracknumber == itn)
-        lon_c[ii] = np.mean(longitude[tracknumber == itn])
-        lat_c[ii] = np.mean(latitude[tracknumber == itn])
-        xx_c[ii] = np.mean(xx[ixx])
-        yy_c[ii] = np.mean(yy[iyy])
-        
+        k = int(itn)
+        sl = slices[k - 1] if (k == itn and 1 <= k <= len(slices)) else None
+        if sl is None:
+            sl = (slice(0, tracknumber.shape[0]), slice(0, tracknumber.shape[1]))
+        mask = tracknumber[sl] == itn
+        iyy, ixx = np.where(mask)
+        lon_c[ii] = np.mean(longitude[sl][mask])
+        lat_c[ii] = np.mean(latitude[sl][mask])
+        xx_c[ii] = np.mean(xx[ixx + sl[1].start])
+        yy_c[ii] = np.mean(yy[iyy + sl[0].start])
+
     return lon_c, lat_c, xx_c, yy_c, tracknumber_uniqe
 
 #-----------------------------------------------------------------------
@@ -223,7 +427,37 @@ def calc_latlon(lon1, lat1, dist, angle):
     return lon2, lat2
 
 #-----------------------------------------------------------------------
-def get_track_stats(trackstats_file, start_datetime, end_datetime, dt_thres):
+def draw_class_perimeter(ax, xx, yy, perim, color, alpha, zorder, proj, cmap_colors=None, rank_tracknumbers=None):
+    """
+    Overplot object perimeters, in a single color or (cmap_colors given) one color per track.
+
+    Args:
+        cmap_colors: (N, 4) array, optional
+            Colors to use. The color of a track is the rank of its track number among rank_tracknumbers,
+            modulo N: tracks get different colors, and the same track the same color in every frame.
+        rank_tracknumbers: 1D array, optional
+            Sorted track numbers of all tracks that are drawn (every number in perim is one of them). None: the
+            track number itself (track numbers are the track index + 1, so 1 ... N).
+    """
+    if perim is None:
+        return
+    if cmap_colors is None:
+        perim_mask = np.ma.masked_where(perim == 0, np.ones(perim.shape))
+        ax.pcolormesh(xx, yy, perim_mask, cmap=ListedColormap([color]), vmin=0, vmax=1,
+                      transform=proj, zorder=zorder, alpha=alpha)
+    else:
+        ncolors = len(cmap_colors)
+        if rank_tracknumbers is None:
+            color_index = (perim - 1) % ncolors
+        else:
+            color_index = np.searchsorted(rank_tracknumbers, perim) % ncolors
+        color_index = np.ma.masked_where(perim == 0, color_index)
+        # index k falls in the k-th color of the ListedColormap with vmin=-0.5, vmax=N-0.5
+        ax.pcolormesh(xx, yy, color_index, cmap=ListedColormap(cmap_colors), vmin=-0.5, vmax=ncolors - 0.5,
+                      transform=proj, zorder=zorder, alpha=alpha)
+
+#-----------------------------------------------------------------------
+def get_track_stats(trackstats_file, start_datetime, end_datetime, dt_thres, min_hours=0.0):
     """
     Subset tracks statistics data within start/end datetime
 
@@ -236,6 +470,9 @@ def get_track_stats(trackstats_file, start_datetime, end_datetime, dt_thres):
             End datetime to subset tracks.
         dt_thres: timedelta
             A timedelta threshold to retain tracks.
+        min_hours: float, optional
+            Minimum lifetime [hour] of the tracks that are drawn (0: all). The pixel-level track numbers of the tracks
+            that are kept (track index + 1, of ALL tracks of the file) are returned as 'tracknumbers_all' (None if all).
             
     Returns:
         track_dict: dictionary
@@ -263,15 +500,29 @@ def get_track_stats(trackstats_file, start_datetime, end_datetime, dt_thres):
     # lifetime_long = lifetime.isel(tracks=idx_long)
     # print(f'Number of long tracks within input period: {ntracks_long}')
 
+    # Tracks that live at least min_hours: the pixel-level masks are filtered with their track numbers
+    tracknumbers_all = None
+    if min_hours and min_hours > 0:
+        tracknumbers_all = np.where((dss['track_duration'].values * time_res) >= min_hours)[0] + 1
+        keep_idx = np.isin(idx + 1, tracknumbers_all)
+        idx = idx[keep_idx]
+        ntracks = len(idx)
+        lifetime = dss.track_duration.isel(tracks=idx) * time_res
+        print(f'Number of tracks that live at least {min_hours} h: {ntracks}')
+
     # Subset these tracks and put in a dictionary
     track_dict = {
         'ntracks' : ntracks,
+        'tracknumbers_all' : tracknumbers_all,
         'lifetime' : lifetime,
         'cell_bt' : dss['base_time'].isel(tracks=idx),
         'cell_lon' : dss['cell_meanlon'].isel(tracks=idx),
         'cell_lat' : dss['cell_meanlat'].isel(tracks=idx),
         'start_split_tracknumber' : dss['start_split_tracknumber'].isel(tracks=idx),
         'end_merge_tracknumber' : dss['end_merge_tracknumber'].isel(tracks=idx),
+        # start and end time of every track (1D): plot_batches.subset_track_dict selects the tracks of a batch with them
+        'start_bt': dss['start_basetime'].isel(tracks=idx).values if 'start_basetime' in dss else None,
+        'end_bt': dss['end_basetime'].isel(tracks=idx).values if 'end_basetime' in dss else None,
         'dt_thres': dt_thres,
         'time_res': time_res,
         # # Long-lived tracks
@@ -364,6 +615,25 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
     show_nexrad = plot_info.get('show_nexrad', False)
     nexrad_info = plot_info.get('nexrad_info', None)
     nexrad_radius = plot_info.get('nexrad_radius', 150)
+    show_cell_numbers = plot_info.get('show_cell_numbers', True)
+    # Cell style (defaults = the picture of earlier versions)
+    show_cell_outline = plot_info.get('show_cell_outline', True)
+    cell_color = plot_info.get('cell_color') or 'k'
+    cell_perim_alpha = plot_info.get('cell_perim_alpha')
+    if cell_perim_alpha is None:
+        cell_perim_alpha = mask_alpha
+    cell_halo = plot_info.get('cell_halo')
+    cell_perim_cmap_colors = plot_info.get('cell_perim_cmap_colors')
+    cell_track_color = plot_info.get('cell_track_color') or 'k'
+    cell_track_lw = plot_info.get('cell_track_lw')
+    cell_track_ls = plot_info.get('cell_track_ls', '-')
+    cell_min_hours = plot_info.get('cell_min_hours', 0.0)
+    grid_linewidth = plot_info.get('grid_linewidth', 0.0)
+    grid_linestyle = plot_info.get('grid_linestyle', '--')
+    grid_alpha = plot_info.get('grid_alpha', 1.0)
+    show_terrain = plot_info.get('show_terrain', True)
+    tn_halo = pixel_dict.get('tn_halo')
+    tracknumbers_all = track_dict.get('tracknumbers_all')
 
     # Map domain, lat/lon ticks, background map features
     map_extent = map_info['map_extent']
@@ -378,21 +648,32 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
     norm_lifetime = mpl.colors.BoundaryNorm(lev_lifetime, ncolors=cmap_lifetime.N, clip=True)
     
     # Set up map projection.
-    # Detect dateline-crossing by normalizing both extent lons to -180~+180:
-    # if lon0_n > lon1_n the extent goes eastward across the dateline.
-    # This works for both 0-360 notation (lon_max=220) and -180~+180 notation (lon_max=-140).
-    _lon0_n = ((map_extent[0] + 180) % 360) - 180
-    _lon1_n = ((map_extent[1] + 180) % 360) - 180
-    if _lon0_n > _lon1_n:
-        central_longitude = 180
-    else:
-        central_longitude = 0
-    proj = ccrs.PlateCarree(central_longitude=central_longitude)
+    projection = map_info.get('projection', 'PlateCarree')
+    is_platecarree = projection_key(projection) == 'platecarree'
     # data_proj always PlateCarree(0): data lons are in -180~+180 convention.
     data_proj = ccrs.PlateCarree(central_longitude=0)
-    # Compute set_extent bounds in the proj frame (values relative to central_longitude).
-    _ext_lon0 = ((map_extent[0] - central_longitude + 180) % 360) - 180
-    _ext_lon1 = ((map_extent[1] - central_longitude + 180) % 360) - 180
+    if is_platecarree:
+        # Detect dateline-crossing by normalizing both extent lons to -180~+180:
+        # if lon0_n > lon1_n the extent goes eastward across the dateline.
+        # This works for both 0-360 notation (lon_max=220) and -180~+180 notation (lon_max=-140).
+        _lon0_n = ((map_extent[0] + 180) % 360) - 180
+        _lon1_n = ((map_extent[1] + 180) % 360) - 180
+        if map_info.get('central_longitude') is not None:
+            central_longitude = map_info['central_longitude']
+        elif _lon0_n > _lon1_n:
+            central_longitude = 180
+        else:
+            central_longitude = 0
+        proj = ccrs.PlateCarree(central_longitude=central_longitude)
+        # CRS of the data, of the gridlines and of everything that is drawn at data locations
+        tproj = proj
+        # Compute set_extent bounds in the proj frame (values relative to central_longitude).
+        _ext_lon0 = ((map_extent[0] - central_longitude + 180) % 360) - 180
+        _ext_lon1 = ((map_extent[1] - central_longitude + 180) % 360) - 180
+    else:
+        proj = make_projection(projection, map_info.get('central_longitude'), map_info.get('central_latitude'),
+                               map_info.get('standard_parallels'))
+        tproj = data_proj
     land = cfeature.NaturalEarthFeature('physical', 'land', map_resolution)
     borders = cfeature.NaturalEarthFeature('cultural', 'admin_0_boundary_lines_land', map_resolution)
     states = cfeature.NaturalEarthFeature('cultural', 'admin_1_states_provinces_lakes', map_resolution)
@@ -401,8 +682,9 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
     mpl.rcParams['font.size'] = fontsize
     # mpl.rcParams['font.family'] = 'Helvetica'
     fig = plt.figure(figsize=figsize, dpi=300, facecolor='w')
-    gs = gridspec.GridSpec(1,2, height_ratios=[1], width_ratios=[1,0.03])
-    gs.update(wspace=0.05, hspace=0.05, left=0.1, right=0.9, top=0.92, bottom=0.08)
+    gs = gridspec.GridSpec(1,2, height_ratios=[1], width_ratios=LAYOUT['width_ratios'])
+    gs.update(wspace=LAYOUT['wspace'], hspace=LAYOUT['hspace'], left=LAYOUT['left'], right=LAYOUT['right'],
+              top=LAYOUT['top'], bottom=LAYOUT['bottom'])
     ax1 = plt.subplot(gs[0], projection=proj)
     cax1 = plt.subplot(gs[1])
 
@@ -411,7 +693,11 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
     HGT_lev = np.arange(500, 4001, 500)
     norm0 = mpl.colors.BoundaryNorm(boundaries=HGT_lev, ncolors=cmap0.N)
 
-    ax1.set_extent([_ext_lon0, _ext_lon1, map_extent[2], map_extent[3]], crs=proj)
+    if is_platecarree:
+        ax1.set_extent([_ext_lon0, _ext_lon1, map_extent[2], map_extent[3]], crs=proj)
+    else:
+        # Bounds in projection coordinates (the full pixel-level domain or the projected --extent box)
+        ax1.set_extent(map_info['proj_extent'], crs=proj)
     ax1.set_aspect('auto', adjustable=None) # Do not auto adjust aspect ratio
     # Add map features
     if draw_land == True:
@@ -421,19 +707,27 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
     if draw_state == True:
         ax1.add_feature(states, edgecolor='gray', facecolor='none', linewidth=0.5, zorder=4)
     # Gridlines and lat/lon labels
-    gl = ax1.gridlines(crs=proj, draw_labels=True, linestyle='--', linewidth=0.)
+    grid_kw = dict(color='k', alpha=grid_alpha) if grid_linewidth > 0 else {}
+    gl = ax1.gridlines(crs=tproj, draw_labels=True, linestyle=grid_linestyle, linewidth=grid_linewidth, **grid_kw)
     gl.right_labels = False
     gl.top_labels = False
+    if not is_platecarree:
+        # labels outside the map, not inline and not rotated (cartopy's default for non-rectangular projections)
+        gl.x_inline = False
+        gl.y_inline = False
+        gl.rotate_labels = False
     if (lonv is not None) & (latv is not None):
         gl.xlocator = mpl.ticker.FixedLocator(lonv)
         gl.ylocator = mpl.ticker.FixedLocator(latv)
     lon_formatter = LongitudeFormatter(zero_direction_label=True)
     lat_formatter = LatitudeFormatter()        
-    ax1.xaxis.set_major_formatter(lon_formatter)
-    ax1.yaxis.set_major_formatter(lat_formatter)
+    if is_platecarree:
+        ax1.xaxis.set_major_formatter(lon_formatter)
+        ax1.yaxis.set_major_formatter(lat_formatter)
 
     # Colorfill terrain
-    pcm0 = ax1.pcolormesh(lon_ter, lat_ter, HGT, shading='nearest', norm=norm0, cmap=cmap0, transform=proj, zorder=0)
+    if show_terrain:
+        pcm0 = ax1.pcolormesh(lon_ter, lat_ter, HGT, shading='nearest', norm=norm0, cmap=cmap0, transform=tproj, zorder=0)
     # Colorfill variable
     cmap = plt.get_cmap(cmaps)
     norm_pcm = mpl.colors.BoundaryNorm(levels, ncolors=cmap.N, clip=True)
@@ -442,11 +736,15 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
     # Scale the variable
     var_fill = var_fill * var_scale
     var_fill = np.ma.masked_where(var_fill < min(levels), var_fill)
-    cf1 = ax1.pcolormesh(xx, yy, var_fill, norm=norm_pcm, cmap=cmap, transform=proj, zorder=2, alpha=shade_alpha)
+    cf1 = ax1.pcolormesh(xx, yy, var_fill, norm=norm_pcm, cmap=cmap, transform=tproj, zorder=2, alpha=shade_alpha)
     # Overplot cell tracknumber perimeters
-    Tn = np.ma.masked_where(tn_perim == 0, tn_perim)
-    Tn[Tn > 0] = 10
-    tn1 = ax1.pcolormesh(xx, yy, Tn, cmap='gray', transform=proj, zorder=3, alpha=mask_alpha)
+    if show_cell_outline:
+        # Ring just outside the perimeters (optional), under the perimeters
+        if cell_halo and tn_halo is not None:
+            draw_class_perimeter(ax1, xx, yy, tn_halo, cell_halo, cell_perim_alpha, 2.9, tproj)
+        # One color for all cells, or (cell_perim_cmap) one color per track
+        draw_class_perimeter(ax1, xx, yy, tn_perim, cell_color, cell_perim_alpha, 3, tproj,
+                             cmap_colors=cell_perim_cmap_colors, rank_tracknumbers=tracknumbers_all)
 
     # Plot track centroids and paths
     if show_tracks:
@@ -457,6 +755,9 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
             # Get duration of the track
             ilifetime = lifetime.values[itrack]
             itracknum = lifetime.tracks.data[itrack]+1
+            # Tracks shorter than the minimum lifetime are not drawn
+            if ilifetime < cell_min_hours:
+                continue
             idur = (ilifetime / time_res).astype(int)
             # Get basetime of the track and the last time
             ibt = cell_bt.values[itrack,:idur]
@@ -490,10 +791,12 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
                     size_vals = np.repeat(size_c, idur_cut)
                     size_vals[0] = size_c * 2   # Make CI symbol size larger
                     if show_paths:
-                        cc = ax1.plot(cell_lon.values[itrack,idx_cut], cell_lat.values[itrack,idx_cut], lw=lw_c, ls='-', color='k', transform=proj, zorder=3)
+                        lw_path = lw_c if cell_track_lw is None else cell_track_lw
+                        cc = ax1.plot(cell_lon.values[itrack,idx_cut], cell_lat.values[itrack,idx_cut], lw=lw_path, ls=cell_track_ls,
+                                      color=cell_track_color, transform=tproj, zorder=3)
                     if show_symbols:
                         cl = ax1.scatter(cell_lon.values[itrack,idx_cut], cell_lat.values[itrack,idx_cut], s=size_vals, c=color_vals, 
-                                        norm=norm_lifetime, cmap=cmap_lifetime, transform=proj, zorder=4, **marker_style)
+                                        norm=norm_lifetime, cmap=cmap_lifetime, transform=tproj, zorder=4, **marker_style)
 
         # Plot colorbar for tracks
         if show_symbols:
@@ -502,7 +805,7 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
             cbinset.set_ticks(cbticks_tracks)
             
     # Overplot cell tracknumbers at current frame
-    for ii in range(0, len(lon_tn)):
+    for ii in (range(0, len(lon_tn)) if show_cell_numbers else []):
         # Normalize to 0-360 for dateline-safe lon check
         _lon_tn_norm = lon_tn[ii] % 360
         _lonmin_norm = map_extent[0] % 360
@@ -521,9 +824,9 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
         for ii in range(0, len(radii)):
             # Returns array of shape (n_samples, 2): columns are [lon, lat] in WGS84 degrees
             circle = geod.circle(radar_lon, radar_lat, radii[ii] * 1e3, n_samples=100, endpoint=True)
-            # Use transform=proj (PlateCarree) to avoid the Geodetic->PlateCarree PROJ CRS
+            # Use transform=tproj (PlateCarree) to avoid the Geodetic->PlateCarree PROJ CRS
             # transform that is broken in PROJ 9.8.x
-            ax1.plot(circle[:, 0], circle[:, 1], color='k', lw=0.4, transform=proj, zorder=3)
+            ax1.plot(circle[:, 0], circle[:, 1], color='k', lw=0.4, transform=tproj, zorder=3)
         # for ii in range(0, len(radii)):
         #     rr = ax1.tissot(rad_km=radii[ii], lons=radar_lon, lats=radar_lat, n_samples=100, facecolor='None', edgecolor='k', lw=0.4, zorder=3)
     # Plot azimuth lines
@@ -555,7 +858,7 @@ def plot_map(pixel_dict, plot_info, map_info, track_dict):
             if nexrad_radius > 0:
                 nex_circle = geod_nex.circle(nlon, nlat, nexrad_radius * 1e3, n_samples=100, endpoint=True)
                 ax1.plot(nex_circle[:, 0], nex_circle[:, 1], color='cyan', lw=0.6,
-                         transform=proj, zorder=5)
+                         transform=tproj, zorder=5)
 
     # Reflectivity colorbar
     cb1 = plt.colorbar(cf1, cax=cax1, label=cblabels, ticks=cbticks, extend='both')
@@ -595,12 +898,19 @@ def work_for_time_loop(datafile, track_dict, map_info, plot_info):
     varname_fill = plot_info.get('varname_fill')
     radar_lat = plot_info.get('radar_lat')
     radar_lon = plot_info.get('radar_lon')
+    # Longitudes to -180..180 for map projections other than PlateCarree
+    wrap_lon = map_info.get('wrap_lon', False)
 
     # Read terrain data
-    ds_ter = xr.open_dataset(terrain_file)
-    lon_ter = ds_ter.longitude.squeeze().data
-    lat_ter = ds_ter.latitude.squeeze().data
-    HGT = ds_ter.orog.squeeze().data
+    if plot_info.get('show_terrain', True):
+        ds_ter = xr.open_dataset(terrain_file)
+        lon_ter = ds_ter.longitude.squeeze().data
+        lat_ter = ds_ter.latitude.squeeze().data
+        HGT = ds_ter.orog.squeeze().data
+        if wrap_lon:
+            lon_ter = norm_lon(lon_ter)
+    else:
+        lon_ter = lat_ter = HGT = None
 
     # Read pixel-level data
     ds = xr.open_dataset(datafile)
@@ -655,6 +965,8 @@ def work_for_time_loop(datafile, track_dict, map_info, plot_info):
         # Use index slicing to subset - works for any 2D lat/lon grid without creating NaNs
         lon_vals = ds['longitude'].values
         lat_vals = ds['latitude'].values
+        if wrap_lon:
+            lon_vals, lonmin, lonmax = norm_lon(lon_vals), norm_lon(lonmin), norm_lon(lonmax)
         
         # Find all points within the domain
         mask = ((lon_vals >= lonmin) & (lon_vals <= lonmax) & 
@@ -698,11 +1010,24 @@ def work_for_time_loop(datafile, track_dict, map_info, plot_info):
         convmask_sub = ds['conv_mask'].squeeze()
         tracknumber_sub = ds['tracknumber'].squeeze()
 
+    if wrap_lon:
+        lon_sub = norm_lon(lon_sub)
+
+    # Only the tracks that live at least cell_min_hours (their track numbers are in track_dict; None = all)
+    tracknumbers_all = track_dict.get('tracknumbers_all')
+    tn_data = tracknumber_sub.data
+    if tracknumbers_all is not None:
+        tn_data = np.where(np.isin(tn_data, tracknumbers_all), tn_data, np.nan)
+
     # Get object perimeters
-    tn_perim = label_perimeter(tracknumber_sub.data, dilationstructure)
+    tn_perim = label_perimeter(tn_data, dilationstructure, width=plot_info.get('cell_perim_width', 1))
+    # Ring just outside the perimeters (optional)
+    tn_halo = None
+    if plot_info.get('cell_halo'):
+        tn_halo = label_perimeter(tn_data, dilationstructure, width=1, outer=True)
 
     # Apply tracknumber to conv_mask
-    tnconv = tracknumber_sub.where(convmask_sub > 0).data
+    tnconv = np.where(convmask_sub.data > 0, tn_data, np.nan)
 
     # Calculates cell center locations
     lon_tn, lat_tn, xx_tn, yy_tn, tnconv_unique = calc_cell_center(tnconv, lon_sub, lat_sub, xx_sub, yy_sub)
@@ -721,6 +1046,7 @@ def work_for_time_loop(datafile, track_dict, map_info, plot_info):
         'tn': tracknumber_sub,
         'conv_mask': convmask_sub,
         'tn_perim': tn_perim, 
+        'tn_halo': tn_halo,
         'lon_tn': lon_tn, 
         'lat_tn': lat_tn, 
         'tracknumber_unique': tnconv_unique,
@@ -750,6 +1076,7 @@ if __name__ == "__main__":
     end_datetime = args_dict.get('end_datetime')
     run_parallel = args_dict.get('run_parallel')
     n_workers = args_dict.get('workers')
+    batch_size = args_dict.get('batch_size')
     config_file = args_dict.get('config_file')
     radar_lat = args_dict.get('radar_lat')
     radar_lon = args_dict.get('radar_lon')
@@ -779,9 +1106,45 @@ if __name__ == "__main__":
     show_city = args_dict.get('show_city', 0)
     show_nexrad = args_dict.get('show_nexrad', 0)
     nexrad_radius = args_dict.get('nexrad_radius', 150)
+    show_cell_numbers = args_dict.get('show_cell_numbers', 1)
+    show_cell_outline = args_dict.get('show_cell_outline', 1)
+    cell_color = args_dict.get('cell_color', None)
+    cell_perim_alpha = args_dict.get('cell_perim_alpha', None)
+    cell_perim_width = args_dict.get('cell_perim_width', 1)
+    cell_halo = args_dict.get('cell_halo', None)
+    cell_perim_cmap = args_dict.get('cell_perim_cmap', None)
+    cell_track_color = args_dict.get('cell_track_color', None)
+    cell_track_lw = args_dict.get('cell_track_lw', None)
+    cell_track_ls = args_dict.get('cell_track_ls', '-')
+    cell_min_hours = args_dict.get('cell_min_hours', 0.0)
+    grid_linewidth = args_dict.get('grid_linewidth', 0.0)
+    grid_linestyle = args_dict.get('grid_linestyle', '--')
+    grid_alpha = args_dict.get('grid_alpha', 1.0)
+    show_terrain = args_dict.get('show_terrain', 1)
+    # Check the cell style values here, before any frame is drawn
+    for _name, _val in (('--cell_color', cell_color), ('--cell_halo', cell_halo), ('--cell_track_color', cell_track_color)):
+        if _val is not None and not mpl.colors.is_color_like(_val):
+            sys.exit(f"{_name}: '{_val}' is not a matplotlib color")
+    if cell_perim_alpha is not None and not (0 <= cell_perim_alpha <= 1):
+        sys.exit('--cell_perim_alpha must be between 0 and 1')
+    if cell_perim_width < 1:
+        sys.exit('--cell_perim_width must be at least 1')
+    if not (0 <= grid_alpha <= 1):
+        sys.exit('--grid_alpha must be between 0 and 1')
+    cell_perim_cmap_colors = None
+    if cell_perim_cmap is not None:
+        try:
+            cell_perim_cmap_colors = get_cmap_colors(cell_perim_cmap)
+        except ValueError as e:
+            sys.exit(str(e))
+    projection = args_dict.get('projection', 'PlateCarree')
+    central_longitude = args_dict.get('central_longitude', None)
+    central_latitude = args_dict.get('central_latitude', None)
+    standard_parallels = args_dict.get('standard_parallels', None)
+    is_platecarree = projection_key(projection) == 'platecarree'
     
-    # Determine the figsize based on lat/lon ratio
-    if (figsize is None):
+    # Determine the figsize based on lat/lon ratio (other projections: from the projected extent, further below)
+    if (figsize is None) and is_platecarree:
         if (map_extent is not None):
             # Calculate aspect ratio from map extent
             lon_span = (map_extent[1] - map_extent[0]) % 360 or 360
@@ -793,7 +1156,6 @@ if __name__ == "__main__":
         else:
             # Default figsize if map_extent not provided
             figsize = [figsize_x, figsize_x * 0.9]
-    print(f'Figure size (width, height) in inches: {figsize}')
 
     # Terrain file
     terrain_file = "/pscratch/sd/w/wcmca1/SCREAMv1-cess2/maps/hrrr_sfc_latlon_orog_lsm.nc"
@@ -857,6 +1219,21 @@ if __name__ == "__main__":
         'show_city': bool(show_city),
         'show_nexrad': bool(show_nexrad),
         'nexrad_radius': nexrad_radius,
+        'show_cell_numbers': bool(show_cell_numbers),
+        'show_cell_outline': bool(show_cell_outline),
+        'cell_color': cell_color,
+        'cell_perim_alpha': cell_perim_alpha,       # None: mask_alpha
+        'cell_perim_width': cell_perim_width,
+        'cell_halo': cell_halo,
+        'cell_perim_cmap_colors': cell_perim_cmap_colors,
+        'cell_track_color': cell_track_color,
+        'cell_track_lw': cell_track_lw,              # None: lw_centroid by track lifetime
+        'cell_track_ls': cell_track_ls,
+        'cell_min_hours': cell_min_hours,
+        'grid_linewidth': grid_linewidth,
+        'grid_linestyle': grid_linestyle,
+        'grid_alpha': grid_alpha,
+        'show_terrain': bool(show_terrain),
     }
 
     city_info = {
@@ -885,6 +1262,11 @@ if __name__ == "__main__":
         'draw_land': bool(draw_land),
         'draw_border': bool(draw_border),
         'draw_state': bool(draw_state),
+        'projection': projection,
+        'central_longitude': central_longitude,
+        'central_latitude': central_latitude,
+        'standard_parallels': standard_parallels,
+        'wrap_lon': not is_platecarree,
     }
 
     # Tracks that end longer than this threshold from the current pixel-level frame are not plotted
@@ -936,33 +1318,50 @@ if __name__ == "__main__":
     # Add to plot_info dictionary
     plot_info['figdir'] = figdir
 
+    # Map projection other than PlateCarree: axes limits in projection coordinates (the projected --extent box,
+    # or the whole pixel-level grid) and the figure size with the same aspect ratio
+    if not is_platecarree:
+        proj_obj = make_projection(projection, central_longitude, central_latitude, standard_parallels)
+        with xr.open_dataset(datafiles[0]) as ds0:
+            lon0 = ds0['longitude'].squeeze().values
+            lat0 = ds0['latitude'].squeeze().values
+        proj_extent = projected_extent(proj_obj, map_extent, lon0, lat0)
+        map_info['proj_extent'] = proj_extent
+        if figsize is None:
+            aspect_yx = (proj_extent[3] - proj_extent[2]) / (proj_extent[1] - proj_extent[0])
+            figsize = figsize_for_aspect(figsize_x, aspect_yx)
+            plot_info['figsize'] = figsize
+        print(f'Projection {projection}: extent in projection coordinates [m] {[round(v) for v in proj_extent]}')
+    print(f'Figure size (width, height) in inches: {figsize}')
+
     # Get track stats data
-    track_dict = get_track_stats(trackstats_file, start_datetime, end_datetime, dt_thres)
+    track_dict = get_track_stats(trackstats_file, start_datetime, end_datetime, dt_thres, min_hours=cell_min_hours)
 
     # Serial option
     if run_parallel == 0:
         for ifile in range(len(datafiles)):
             print(datafiles[ifile])
             result = work_for_time_loop(datafiles[ifile], track_dict, map_info, plot_info)
+            plot_batches.release_memory()
 
     # Parallel option
     elif run_parallel == 1:
-        # Set Dask temporary directory for workers
-        dask_tmp_dir = config.get("dask_tmp_dir", "./")
-        dask.config.set({'temporary-directory': dask_tmp_dir})
-        # Initialize dask
-        cluster = LocalCluster(n_workers=n_workers, threads_per_worker=1)
-        client = Client(cluster)
-        results = []
-        for ifile in range(len(datafiles)):
-            print(datafiles[ifile])
-            result = dask.delayed(work_for_time_loop)(datafiles[ifile], track_dict, map_info, plot_info)
-            results.append(result)
-
-        # Trigger dask computation
-        final_result = dask.compute(*results)
-
+        # Batches of consecutive frames; every batch gets the tracks of its own time window, sent once to the workers
+        if batch_size is None:
+            batch_size = plot_batches.default_batch_size(n_workers)
+        cluster, client = plot_batches.make_cluster(n_workers, config.get("dask_tmp_dir", "./"))
+        failed = plot_batches.run_in_batches(
+            client, work_for_time_loop,
+            items=[(datafiles[i],) for i in range(len(datafiles))],
+            times=plot_batches.frame_times(datafiles_basetime),
+            subset_fn=lambda t0, t1: {'track_dict': plot_batches.subset_track_dict(track_dict, t0, t1)},
+            batch_size=batch_size,
+            common={'map_info': map_info, 'plot_info': plot_info},
+        )
+        client.close()
         cluster.close()
-        client.close()    
+        # failed frames are logged; the run only fails if more than 5 % of the frames did
+        if len(failed) > 0.05 * len(datafiles):
+            sys.exit(f'{len(failed)} of {len(datafiles)} frames failed')
     else:
         sys.exit('Valid parallelization flag not provided')
