@@ -1,0 +1,190 @@
+# Settings of the SCREAM cold pool snapshots for individual cases
+# (plot_subset_cell_coldpool_snapshots.py and the notebook Notebooks/tests/test_plot_coldpool_snapshots_scream.ipynb).
+#
+# Use:    plot_subset_cell_coldpool_snapshots.py --case se_us_20200520 -p 1       (time range of the case)
+#         plot_subset_cell_coldpool_snapshots.py -s 2020-05-20T12:00 -e 2020-05-20T15:00 --case se_us_20200520
+#         plot_subset_cell_coldpool_snapshots.py --case se_us_20200520 --show_case      (prints the values in force)
+#         make_coldpool_animation.py --case se_us_20200520 [-s ... -e ... --layout both]  (PNG files + mp4 per layout)
+# Notebook: case = cl.load_case(CASE_FILE, 'se_us_20200520')
+#
+# Order of precedence (later wins):  built-in STYLE / map / options   <  "defaults" below   <  the case   <  command line.
+#
+# HOW TO ADD A CASE: copy one block of "cases:", give it a new name and keep only the keys that differ from the built-in
+# values; every key is optional. Unknown keys are an error that lists the valid ones.
+#
+#   start_date, end_date   time range, 'YYYY-mm-ddTHH:MM' (quote it); used when -s / -e are not given. Any month of the
+#                          cell tracking run works: the files of a time are found from the month of the time, so no
+#                          config file is needed per case (the -c config only gives the root path and file names).
+#   map:       the domain and the projection (arguments of make_map_info)
+#     extent               [lonmin, lonmax, latmin, latmax], degrees east (0-360 or -180..180); null = the whole grid
+#     projection           LambertConformal (default) | PlateCarree | AlbersEqualArea | Mercator
+#     central_longitude    number, or auto = the center of the extent (default)
+#     central_latitude     number, or auto = the center of the extent (default)
+#     standard_parallels   list, or auto = the central latitude (default)
+#   options:   what is computed / made
+#     layout               single | two | both (default two)
+#     bkg_radius_km        radius of the circular running mean of the anomaly, 100 km radius = 200 km diameter (default 100)
+#     land_ocean_separate  true: land and ocean points are averaged separately (default true)
+#     dbz_var              reflectivity variable of the pixel file: dbz_lowlevel (default) | dbz_comp
+#     lookback_hours       cell tracks that started this long before the first time are drawn too (default 3)
+#     buffer_deg           buffer around the extent where the running mean is computed (default: radius / 70 km + 0.1 degrees)
+#   style:     any key of STYLE in coldpool_snapshot_lib.py, e.g.
+#     cp_levels            cold pool anomaly levels [K], ascending negative numbers (fixed in all frames)
+#     cp_cmap, cp_cmap_range   colormap name and the part of it that is used
+#     dbz_min, dbz_alpha   weakest reflectivity drawn [dBZ] and its opacity (the same in both layouts)
+#     dbz_levels           reflectivity color levels
+#     rain_levels          rain rate contour levels [mm/h] of the two-panel layout
+#     vector_spacing_km, vector_scale, vector_width   10 m wind vectors (scale: m/s per axes width, fixed in all frames)
+#     quiverkey_xy, quiverkey_box   position of the vector key (axes coordinates) and the filled box behind it (false = none)
+#     figsize_x, dpi, fontsize, title_prefix, show_cell_numbers, show_symbols, ...
+
+defaults: {}          # applied to every case, e.g.  style: {dpi: 150}
+
+cases:
+
+  # The MCS of 2020-05-20 13:15 over Tennessee / Alabama / Kentucky (the example of the notebook)
+  se_us_20200520:
+    description: MCS over TN / AL / KY, 2020-05-20 13:15 UTC
+    start_date: '2020-05-20T08:00'
+    end_date: '2020-05-20T18:00'
+    map:
+      extent: [-93, -80, 31, 37]
+      central_longitude: auto
+    options:
+      layout: single
+      bkg_radius_km: 100
+    style:
+      cp_levels: [-4, -3, -2.5, -2, -1.5, -1.25, -1]
+      vector_spacing_km: 27
+      vector_scale: 200
+      cell_track_color: 'k'
+      # lw_centroid: [2, 2, 2]
+      dbz_min: 20
+      dbz_alpha: 0.8
+
+  # SEUS MCS + isolated storms, 2020-05-29
+  se_us_20200529:
+    description: MCS over the southeastern US, 2020-05-29 (starting point)
+    start_date: '2020-05-29T14:00'
+    end_date: '2020-05-31T00:00'
+    map:
+      extent: [-92, -80, 31, 37]
+    options:
+      layout: two
+    style:
+      cp_levels: [-4, -3, -2.5, -2, -1.5, -1.25, -1]
+      vector_spacing_km: 27
+      vector_scale: 200
+      cell_track_color: 'k'
+      dbz_min: 0
+      dbz_alpha: 0.8
+
+  # Central US MCS, 2020-05-26
+  cus_20200526:
+    description: MCS over the central US, 2020-05-26 (starting point)
+    start_date: '2020-05-26T17:30'
+    end_date: '2020-05-27T17:00'
+    map:
+      extent: [-102, -88, 37, 46]
+    options:
+      layout: two
+    style:
+      cp_levels: [-5, -4, -3, -2.5, -2, -1.5, -1]
+      vector_spacing_km: 27
+      vector_scale: 200
+      cell_track_color: 'k'
+      dbz_min: 0
+      dbz_alpha: 0.8
+
+  # Starting points for the other snapshots of the CONUS cell tracking quicklooks (domain looked at, not tuned yet)
+  line_mcs_20200711:
+    description: Line of storms from MO to the mid-Atlantic, 2020-07-11 23:50 UTC (starting point)
+    start_date: '2020-07-11T18:00'
+    end_date: '2020-07-12T06:00'
+    map:
+      extent: [-96, -72, 33, 43]
+    style:
+      cp_levels: [-7, -6, -5, -4, -3, -2.5, -2, -1.5]
+      vector_spacing_km: 27
+      vector_scale: 200
+      cell_track_color: 'k'
+      dbz_min: 20
+      dbz_alpha: 0.8
+
+  # Arkansas storms, 2020-06-02
+  ar_20200602:
+    description: Storms along the Mississippi valley, 2020-06-02 17:50 UTC (starting point)
+    start_date: '2020-06-02T05:00'
+    end_date: '2020-06-03T02:00'
+    map:
+      extent: [-100, -88, 31, 38]
+    options:
+      layout: two
+    style:
+      cp_levels: [-6, -5, -4, -3, -2.5, -2, -1.5, -1]
+      vector_spacing_km: 27
+      vector_scale: 200
+      dbz_min: 0
+      dbz_alpha: 0.8
+
+  # Midwest MCS (no cold pool!)
+  midwest_20200616:
+    description: MCS over the Midwest, 2020-06-16 (starting point)
+    start_date: '2020-06-16T15:00'
+    end_date: '2020-06-17T09:30'
+    map:
+      extent: [-100, -84, 37, 46]
+    options:
+      layout: two
+    style:
+      cp_levels: [-6, -5, -4, -3, -2.5, -2, -1.5, -1]
+      vector_spacing_km: 27
+      vector_scale: 200
+      cell_track_color: 'k'
+      dbz_min: 0
+      dbz_alpha: 0.8
+
+  # SEUS southward moving line of convection over AL, GA
+  se_us_20200723:
+    description: MCS over the southeastern US, 2020-07-23 (starting point)
+    start_date: '2020-07-23T00:00'
+    end_date: '2020-07-23T20:00'
+    map:
+      extent: [-90, -80, 30, 39]
+    options:
+      layout: two
+    style:
+      cp_levels: [-4, -3, -2.5, -2, -1.5, -1.25, -1]
+      vector_spacing_km: 27
+      vector_scale: 200
+      cell_track_color: 'k'
+      dbz_min: 0
+      dbz_alpha: 0.8
+
+  # SEUS 
+  se_us_20200731:
+    description: MCS over the eastern US, 2020-07-31 (starting point)
+    start_date: '2020-07-31T07:00'
+    end_date: '2020-07-31T23:59'
+    map:
+      extent: [-90, -80, 30, 39]
+    options:
+      layout: single
+    style:
+      cp_levels: [-4, -3, -2.5, -2, -1.5, -1.25, -1]
+      vector_spacing_km: 27
+      vector_scale: 200
+      cell_track_color: 'k'
+      dbz_min: 20
+      dbz_alpha: 0.8
+
+  # The whole grid (animation of the CONUS): the map keeps the HRRR projection
+  conus:
+    description: Whole HRRR grid
+    # no time range: give -s / -e
+    map:
+      extent: null
+    style:
+      vector_spacing_km: 120
+      vector_scale: 700
+      figsize_x: 14

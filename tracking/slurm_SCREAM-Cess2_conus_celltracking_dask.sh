@@ -1,16 +1,16 @@
 #!/bin/bash
 #SBATCH -A m1657
-#SBATCH -J Cess2cell
-#SBATCH --qos=debug
-#SBATCH --nodes=4
-#SBATCH --ntasks-per-node=64   # 64 workers per node (1 worker per core)
+#SBATCH -J Cess05
+#SBATCH --qos=regular
+#SBATCH --nodes=6
+#SBATCH --ntasks-per-node=32   # 32 workers per node (1 worker per core)
 #SBATCH --cpus-per-task=1       # 1 CPU per worker
 #SBATCH -C cpu
-#SBATCH --time=00:30:00
+#SBATCH --time=04:00:00
 #SBATCH --exclusive
 #SBATCH --mail-user=zhe.feng@pnnl.gov
 #SBATCH --mail-type=END
-#SBATCH --output=logs/log_SCREAM-Cess2_conus_celltracking.log
+#SBATCH --output=logs/log_SCREAM-Cess2_conus_celltracking_05.log
 date
 
 # Calculate total tasks
@@ -63,7 +63,7 @@ sleep 10
 
 # Run Python
 python /global/homes/f/feng045/program/PyFLEXTRKR-dev/runscripts/run_celltracking.py \
-    /global/homes/f/feng045/program/scream/tracking/config_celltracking_3km_SCREAMv1-Cess2_CONUS.yaml \
+    /global/homes/f/feng045/program/scream/tracking/config_celltracking_3km_SCREAMv1-Cess2_CONUS_05.yaml \
     $scheduler_file
 
 # Clean up the scheduler

@@ -24,8 +24,8 @@ import tempfile
 
 # Script parameters
 # SCREAM
-start_date = "2020-07-01T00:00"
-end_date = "2020-07-01T23:59"
+start_date = "2020-05-01T00:00"
+end_date = "2020-05-31T23:59"
 # MRMS
 # start_date = "2025-05-02T00:00"
 # end_date = "2025-05-04T00:00"
@@ -68,7 +68,7 @@ start_year = str(start_date.split('-')[0])
 
 # Tracking config file
 # SCREAM
-config_file = "/global/homes/f/feng045/program/scream/tracking/config_celltracking_3km_SCREAMv1-Cess2_CONUS_07.yaml"
+config_file = "/global/homes/f/feng045/program/scream/tracking/config_celltracking_3km_SCREAMv1-Cess2_CONUS_05.yaml"
 # MRMS
 # config_file = "/global/homes/f/feng045/program/scream/tracking/jobs/config_celltracking_3km_MRMS_202505.yaml"
 
