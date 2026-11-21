@@ -308,12 +308,11 @@ def test_figures_are_made_and_saved_as_24_bit_png(nb, tmp_path):
     for fig in (distributions, shaded, mean_only, overlay):
         path = nb["save_figure"](fig, "test.png", directory=str(tmp_path), dpi_out=60)
         assert Image.open(path).mode == "RGB"
-    # Time-series plots: a dashed grid drawn above the shaded band (zorder 1) and below the data lines (zorder 3 and above); the distributions keep the light solid grid below everything
-    for fig in (shaded, mean_only, overlay):
+    # All figures: a dotted grid (the style the user set in the notebook) drawn above the shaded band (zorder 1) and below the data lines (zorder 3 and above)
+    for fig in (distributions, shaded, mean_only, overlay):
         ax = fig.axes[0]
-        assert ax.get_axisbelow() == "line" and ax.xaxis.get_gridlines()[0].get_linestyle() == "--" and ax.yaxis.get_gridlines()[0].get_linestyle() == "--"
+        assert ax.get_axisbelow() == "line" and ax.xaxis.get_gridlines()[0].get_linestyle() == ":" and ax.yaxis.get_gridlines()[0].get_linestyle() == ":"
         assert all(c.get_zorder() < ax.xaxis.get_zorder() < min(line.get_zorder() for line in ax.lines if line.get_marker() == "o") for c in ax.collections)
     assert shaded.axes[0].collections and not mean_only.axes[0].collections                      # the shaded figure has the band, the mean figure none
-    assert distributions.axes[0].get_axisbelow() is True and distributions.axes[0].xaxis.get_gridlines()[0].get_linestyle() == "-"
     key_numbers = nb["key_numbers"](tables, "Ocean", [0.0, 6.0])
     assert key_numbers.shape == (len(nb["VARIABLES"]), 4) and key_numbers.loc["q850"].notna().sum() == 2       # q850 only in the first source
