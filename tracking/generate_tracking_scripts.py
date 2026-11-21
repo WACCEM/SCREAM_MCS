@@ -4,6 +4,12 @@ Script to generate config and slurm files for PyFLEXTRKR tracking for multiple m
 
 This script creates monthly config and slurm job files from templates and optionally
 submits them to the SLURM scheduler.
+
+Placeholders replaced in the templates:
+  config template: STARTDATE, ENDDATE (YYYYMMDD.HHMM), YEAR-MONTH (YYYY-MM, e.g. tracking_path_name: tracking/YEAR-MONTH
+                   to keep the files of each month in their own folder)
+  slurm template:  DATE (YYYYMM), CONFIG_TEMPLATE (path of the monthly config),
+                   RUN_SCRIPT (path of the run script given with --run-script)
 """
 
 import os
@@ -12,9 +18,23 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import subprocess
 
+# Directory of the PyFLEXTRKR run scripts, searched for a bare --run-script name
+RUNSCRIPT_DIR = '/global/homes/f/feng045/program/PyFLEXTRKR-dev/runscripts'
 
-def generate_files(start_date, end_date, config_template, slurm_template, 
-                   output_dir, make_scripts=True, submit_jobs=False):
+
+def resolve_run_script(run_script):
+    """
+    Absolute path of a run script, given as a path or as a bare name in RUNSCRIPT_DIR
+    (e.g., 'run_mcs_radar3d.py'). Returns None if it is not found.
+    """
+    for path in (run_script, os.path.join(RUNSCRIPT_DIR, run_script)):
+        if os.path.isfile(path):
+            return os.path.abspath(path)
+    return None
+
+
+def generate_files(start_date, end_date, config_template, slurm_template,
+                   output_dir, make_scripts=True, submit_jobs=False, run_script=None):
     """
     Generate config and slurm files for each month in the date range.
     
@@ -34,6 +54,9 @@ def generate_files(start_date, end_date, config_template, slurm_template,
         Whether to create the script files (default: True)
     submit_jobs : bool
         Whether to submit the jobs to SLURM (default: False)
+    run_script : str
+        Absolute path of the run script that replaces RUN_SCRIPT in the slurm template
+        (default: None, for templates that have the run script written in)
     """
     
     # Parse dates
@@ -55,6 +78,9 @@ def generate_files(start_date, end_date, config_template, slurm_template,
     config_base, config_ext = os.path.splitext(os.path.basename(config_template))
     slurm_base, slurm_ext = os.path.splitext(os.path.basename(slurm_template))
     
+    # Absolute path: the jobs are submitted from inside output_dir
+    output_dir = os.path.abspath(output_dir)
+
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, 'logs'), exist_ok=True)  # For log files
@@ -82,6 +108,7 @@ def generate_files(start_date, end_date, config_template, slurm_template,
             # Generate config file
             config_new = config_content.replace('STARTDATE', startdate_str)
             config_new = config_new.replace('ENDDATE', enddate_str)
+            config_new = config_new.replace('YEAR-MONTH', current.strftime('%Y-%m'))
             
             config_filename = f"{config_base}_{yyyymm}{config_ext}"
             config_path = os.path.join(output_dir, config_filename)
@@ -98,7 +125,9 @@ def generate_files(start_date, end_date, config_template, slurm_template,
                 'CONFIG_TEMPLATE',
                 config_abspath
             )
-            
+            if run_script is not None:
+                slurm_new = slurm_new.replace('RUN_SCRIPT', run_script)
+
             slurm_filename = f"{slurm_base}_{yyyymm}{slurm_ext}"
             slurm_path = os.path.join(output_dir, slurm_filename)
             
@@ -135,10 +164,11 @@ def generate_files(start_date, end_date, config_template, slurm_template,
                 cmd = f"sbatch {job_file}"
                 print(f"\n  Submitting {yyyymm}:")
                 print(f"    $ {cmd}")
-                
+
                 try:
-                    result = subprocess.run(cmd, shell=True, capture_output=True, 
-                                          text=True, check=True)
+                    # Run in output_dir so the relative logs/ path of #SBATCH --output is output_dir/logs
+                    result = subprocess.run(cmd, shell=True, capture_output=True,
+                                          text=True, check=True, cwd=output_dir)
                     print(f"    ✓ {result.stdout.strip()}")
                 except subprocess.CalledProcessError as e:
                     print(f"    ✗ Error: {e.stderr.strip()}")
@@ -168,6 +198,13 @@ Examples:
            --slurm-template scream/tracking/slurm_MRMS_conus_celltracking_dask.sh \\
            --submit
   
+  # MCS tracking (single node, run script given with --run-script)
+  %(prog)s --start 2025-04 --end 2025-09 \\
+           --config-template scream/tracking/config_mcs_3km_SCREAMv1-Cess2_monthly.yaml \\
+           --slurm-template scream/tracking/slurm_SCREAM-Cess2_conus_mcstracking.sh \\
+           --run-script run_mcs_radar3d.py \\
+           --output-dir scream/tracking/jobs_mcs
+
   # Only submit already-existing files (skip generation)
   %(prog)s --start 2025-05 --end 2025-07 \\
            --config-template scream/tracking/config_celltracking_3km_MRMS.yaml \\
@@ -190,8 +227,12 @@ Examples:
                        help='Path to config template file')
     parser.add_argument('-l', '--slurm-template', required=True,
                        help='Path to slurm template file')
-    parser.add_argument('-o', '--output-dir', 
-                       default='scream/tracking',
+    parser.add_argument('-r', '--run-script',
+                       default=None,
+                       help='Run script that replaces RUN_SCRIPT in the slurm template: a path, or a '
+                            f'name in {RUNSCRIPT_DIR} (e.g., run_mcs_radar3d.py)')
+    parser.add_argument('-o', '--output-dir',
+                       default='jobs',
                        help='Directory to save output files (default: %(default)s)')
     parser.add_argument('--make', dest='make_scripts', 
                        action='store_true', default=True,
@@ -218,7 +259,18 @@ Examples:
             parser.error(f"Config template not found: {args.config_template}")
         if not os.path.exists(args.slurm_template):
             parser.error(f"Slurm template not found: {args.slurm_template}")
-    
+
+        # Run script: resolved here so a wrong name fails before any file is written
+        with open(args.slurm_template, 'r') as f:
+            template_has_placeholder = 'RUN_SCRIPT' in f.read()
+        if args.run_script is None and template_has_placeholder:
+            parser.error("The slurm template has a RUN_SCRIPT placeholder: give the run script with --run-script")
+    run_script = None
+    if args.run_script is not None:
+        run_script = resolve_run_script(args.run_script)
+        if run_script is None:
+            parser.error(f"Run script not found: {args.run_script} (also looked in {RUNSCRIPT_DIR})")
+
     generate_files(
         start_date=args.start,
         end_date=args.end,
@@ -226,7 +278,8 @@ Examples:
         slurm_template=args.slurm_template,
         output_dir=args.output_dir,
         make_scripts=args.make_scripts,
-        submit_jobs=args.submit_jobs
+        submit_jobs=args.submit_jobs,
+        run_script=run_script
     )
     
     print("\n✓ Done!")

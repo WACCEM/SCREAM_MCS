@@ -1,3 +1,13 @@
+# Project specific files #
+##########
+tracking_decadal/config_mcs_tbpf_IMERGv7_mcsmip_[0-9][0-9][0-9][0-9].yml
+tracking_decadal/config_mcs_tbpf_SCREAM_decadal_[0-9][0-9][0-9][0-9].yml
+tracking_decadal/config_mcs_tbpf_SCREAM_ne256_ctl_[0-9][0-9][0-9][0-9].yml
+tracking_decadal/config_mcs_tbpf_SCREAM_ne256_tune_[0-9][0-9][0-9][0-9].yml
+tracking_decadal/slurm_mcs_SCREAM_decadal_[0-9][0-9][0-9][0-9].sh
+tracking_decadal/slurm_mcs_SCREAM_ne256_ctl_[0-9][0-9][0-9][0-9].sh
+tracking_decadal/slurm_mcs_SCREAM_ne256_tune_[0-9][0-9][0-9][0-9].sh
+
 # Python #
 ##########
 */__pycache__/*
@@ -6,6 +16,10 @@ dask-worker-space/*
 .ipynb_checkpoints
 *.egg-info
 pyflextrkr.egg-info/*
+
+# Directories #
+#############
+tracking/jobs/
 
 # Datafiles
 ###########

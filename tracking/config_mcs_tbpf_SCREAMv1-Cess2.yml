@@ -201,5 +201,5 @@ zarr_output_presets:
   # Remap back to healpix
   healpix:
     out_filebase: scream2D_hrly_mcsmask_
-    zoom: 9  # zoom level to remap
+    zoom: 8  # zoom level to remap
     version: v1  # version in zarr filename
