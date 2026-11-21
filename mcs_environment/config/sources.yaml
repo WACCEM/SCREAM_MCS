@@ -1,0 +1,173 @@
+# Sources of the MCS environment extraction (see ../README.md for the meaning of every key).
+#
+# Raw variable names, units and conversions live only here. Variable spec keys:
+#   from: <raw name>                      one raw variable
+#   derive: sum | q_from_rh | rh_from_q   derived from several raw variables listed under inputs
+#   scale, offset                         value = derived * scale + offset (output units)
+#   level_hpa                             pressure level: selects the level of pressure-level files, is the pressure of q_from_rh / rh_from_q,
+#                                         and masks the variable where the surface pressure (source key ps) is below the level
+#   units, long_name                      written to the Parquet column metadata
+# Note: write 3.6e6 as 3600000.0 (YAML 1.1 reads 3.6e6 as a string).
+
+defaults:
+  diameters_km: [200, 400, 600]     # circle diameters in km
+  pre_start_hours: 24               # hours before the MCS start (circle stays at the start position)
+  step_hours: null                  # nominal row step; null = step of the finest stream (3 h SCREAM, 1 h ERA5 and E3SM); ERA5 could use 3
+  weighting: area                   # area | none
+  empty_circle: nearest_cell        # nearest_cell | nan
+  max_missing_fraction: 0.05        # sanity limit for rows without a snapshot in the primary stream group
+  earth_radius_km: 6371.0
+
+sources:
+
+  # ------------------------------------------------------------------------------------------------------------------------------
+  OBS:
+    label: "OBS (MCSMIP tracks, ERA5 0.25 deg hourly)"
+    tracks: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/mcs_global_v3/MCSMIP/stats/mcs_tracks_final_combined_tropics_2007_2017.parquet
+    # ERA5 stores extrapolated values below the ground: mask every pressure-level variable with the surface pressure
+    ps: {stream: era5_sp, var: SP}
+    grids:
+      era5: {stream: era5_q, lat: latitude, lon: longitude, area: cos_lat}
+    streams:
+      era5_q:
+        root: /pscratch/sd/w/wcmca1/ERA5/e5.oper.an.pl
+        pattern: "*/e5.oper.an.pl.128_133_q.ll025sc.*.nc"
+        reader: latlon_level
+        grid: era5
+        level_dim: level
+        variables:
+          q850: {from: Q, level_hpa: 850, units: "kg kg-1"}
+      era5_r:
+        root: /pscratch/sd/w/wcmca1/ERA5/e5.oper.an.pl
+        pattern: "*/e5.oper.an.pl.128_157_r.ll025sc.*.nc"
+        reader: latlon_level
+        grid: era5
+        level_dim: level
+        variables:
+          rh850: {from: R, level_hpa: 850, units: "%"}
+          rh500: {from: R, level_hpa: 500, units: "%"}
+      era5_w:
+        root: /pscratch/sd/w/wcmca1/ERA5/e5.oper.an.pl
+        pattern: "*/e5.oper.an.pl.128_135_w.ll025sc.*.nc"
+        reader: latlon_level
+        grid: era5
+        level_dim: level
+        variables:
+          omega850: {from: W, level_hpa: 850, units: "Pa s-1"}
+          omega500: {from: W, level_hpa: 500, units: "Pa s-1"}
+      era5_tcwv:
+        root: /pscratch/sd/w/wcmca1/ERA5/e5.oper.an.sfc
+        pattern: "*/e5.oper.an.sfc.128_137_tcwv.ll025sc.*.nc"
+        reader: latlon
+        grid: era5
+        variables:
+          prw: {from: TCWV, units: "kg m-2"}
+      era5_sp:
+        root: /pscratch/sd/w/wcmca1/ERA5/e5.oper.an.sfc
+        pattern: "*/e5.oper.an.sfc.128_134_sp.ll025sc.*.nc"
+        reader: latlon
+        grid: era5
+        variables: {}
+
+  # ------------------------------------------------------------------------------------------------------------------------------
+  3km_CTL:
+    label: "3-km CTL (SCREAM-decadal ne1024; environment coarsened to ne30pg2)"
+    tracks: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/ne1024/stats/mcs_tracks_final_combined_tropics_1995_2005.parquet
+    ps: null                         # pressure-level fields below the ground are masked (fill values) in the files
+    grids:
+      ne30pg2: {stream: inst3h, lat: lat, lon: lon, area: area}
+    streams:
+      inst3h:
+        root: /pscratch/sd/w/wcmca1/SCREAM-decadal/output.scream.decadal.3hourlyINST_ne30pg2
+        pattern: "*.INSTANT.nhours_x3.????-??-??-?????.nc"      # never matches .nc~ / .nc~~ backups or .rhist. restart files
+        reader: ncol
+        grid: ne30pg2
+        variables:
+          q850:     {derive: q_from_rh, inputs: {rh: RelativeHumidity_at_850hPa, t: T_mid_at_850hPa}, level_hpa: 850, units: "kg kg-1"}
+          rh850:    {from: RelativeHumidity_at_850hPa, scale: 100.0, level_hpa: 850, units: "%"}
+          rh500:    {from: RelativeHumidity_at_500hPa, scale: 100.0, level_hpa: 500, units: "%"}
+          omega850: {from: omega_at_850hPa, level_hpa: 850, units: "Pa s-1"}
+          omega500: {from: omega_at_500hPa, level_hpa: 500, units: "Pa s-1"}
+          pr:       {derive: sum, inputs: [precip_liq_surf_mass_flux, precip_ice_surf_mass_flux], scale: 3600000.0, units: "mm h-1"}
+      inst6h:
+        root: /pscratch/sd/w/wcmca1/SCREAM-decadal/output.scream.decadal.6hourlyINST_ne30pg2
+        pattern: "*.INSTANT.nhours_x6.????-??-??-?????.nc"
+        reader: ncol
+        grid: ne30pg2
+        variables:
+          prw: {from: VapWaterPath, units: "kg m-2"}
+
+  # ------------------------------------------------------------------------------------------------------------------------------
+  3km_TUNE:
+    label: "3-km TUNE (SCREAM Cess2 ne1024; environment coarsened to ne30pg2, prw on ne120pg2)"
+    tracks: /global/cfs/cdirs/m1867/zfeng/E3SM/SCREAMv1/cess2/global/mcs/stats/mcs_tracks_final_combined_tropics_2019_2021.parquet
+    ps: null
+    grids:
+      ne30pg2:  {stream: inst3h, lat: lat, lon: lon, area: area}
+      ne120pg2: {stream: inst3h_ne120, lat: lat, lon: lon, area: area}
+    streams:
+      inst3h:
+        root: /pscratch/sd/w/wcmca1/SCREAMv1-cess2/run/output.3hi_ne30pg2
+        pattern: "3hi_ne30pg2.INSTANT.nhours_x3.????-??-??-?????.nc"
+        reader: ncol
+        grid: ne30pg2
+        variables:
+          q850:     {derive: q_from_rh, inputs: {rh: RelativeHumidity_at_850hPa, t: T_mid_at_850hPa}, level_hpa: 850, units: "kg kg-1"}
+          rh850:    {from: RelativeHumidity_at_850hPa, scale: 100.0, level_hpa: 850, units: "%"}
+          rh500:    {from: RelativeHumidity_at_500hPa, scale: 100.0, level_hpa: 500, units: "%"}
+          omega850: {from: omega_at_850hPa, level_hpa: 850, units: "Pa s-1"}
+          omega500: {from: omega_at_500hPa, level_hpa: 500, units: "Pa s-1"}
+          pr:       {derive: sum, inputs: [precip_liq_surf_mass_flux, precip_ice_surf_mass_flux], scale: 3600000.0, units: "mm h-1"}
+      inst3h_ne120:                   # only 2019-08-01 .. 2020-04-10 so far; prw is NaN for later tracks (recorded as coverage)
+        root: /pscratch/sd/w/wcmca1/SCREAMv1-cess2/run/output.3hi_ne120pg2
+        pattern: "3hi_ne120pg2_dyamond3.INSTANT.nhours_x3.????-??-??-?????.nc"
+        reader: ncol
+        grid: ne120pg2
+        variables:
+          prw: {from: VapWaterPath, units: "kg m-2"}
+
+  # ------------------------------------------------------------------------------------------------------------------------------
+  25km:
+    label: "25-km (E3SMv3 ne120)"
+    tracks: /global/cfs/cdirs/m1867/zfeng/E3SM_polun/ne120_remap_0.1deg/mcs_tbpf_hr2p0/stats/mcs_tracks_final_combined_tropics_2009_2011.parquet
+    ps: {stream: h1, var: PS}        # E3SM extrapolates below the ground: mask with the surface pressure
+    grids:
+      ne120pg2: {stream: h1, lat: lat, lon: lon, area: area}
+    streams:
+      h1:
+        root: /pscratch/sd/p/plma/e3sm_scratch/v3/E3SMv3_ne120/run
+        pattern: "E3SMv3_ne120.eam.h1.????-??-??-?????.nc"
+        reader: ncol
+        grid: ne120pg2
+        variables:
+          prw:      {from: TMQ, units: "kg m-2"}
+          q850:     {from: Q850, level_hpa: 850, units: "kg kg-1"}
+          rh850:    {from: RH850, level_hpa: 850, units: "%"}
+          rh500:    {derive: rh_from_q, inputs: {q: Q500, t: T500}, level_hpa: 500, scale: 100.0, units: "%"}
+          omega500: {from: OMEGA500, level_hpa: 500, units: "Pa s-1"}
+          pr:       {from: PRECT, scale: 3600000.0, units: "mm h-1"}
+
+  # ------------------------------------------------------------------------------------------------------------------------------
+  100km:
+    label: "100-km (E3SM ne30pg2)"
+    tracks: /global/cfs/cdirs/m1867/zfeng/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf_hr2p0/stats/mcs_tracks_final_combined_tropics_2009_2020.parquet
+    ps: {stream: h3, var: PS}
+    grids:
+      ne30pg2: {stream: h3, lat: lat, lon: lon, area: area}
+    streams:
+      h3:
+        root: /pscratch/sd/p/plma/e3sm_scratch/egu2025/ctl.fr/run
+        pattern: "ctl.fr.eam.h3.????-??-??-?????.nc"
+        reader: ncol
+        grid: ne30pg2
+        variables:
+          prw:      {from: TMQ, units: "kg m-2"}
+          rh850:    {from: RH850, level_hpa: 850, units: "%"}
+          omega500: {from: OMEGA500, level_hpa: 500, units: "Pa s-1"}
+          pr:       {derive: sum, inputs: [PRECC, PRECL], scale: 3600000.0, units: "mm h-1"}
+
+  # ------------------------------------------------------------------------------------------------------------------------------
+  # 13-km CTL and 13-km TUNE (SCREAM-decadal ne256): the environment data are not located yet. Copy the 3km_CTL block, set tracks to
+  #   /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/ne256/ctl/stats/mcs_tracks_final_combined_tropics_1995_2005.parquet   (13km_CTL)
+  #   /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/ne256/tune/stats/mcs_tracks_final_combined_tropics_1995_2005.parquet  (13km_TUNE)
+  # and fill roots, patterns, grid names and variable names.

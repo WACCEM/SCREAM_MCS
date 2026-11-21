@@ -1,0 +1,10 @@
+# Python caches (the repository .gitignore only covers one directory level)
+__pycache__/
+*.pyc
+
+# Slurm scripts written by gen_mcs_env_jobs.py (they hold the account and absolute paths of one run)
+slurm/
+
+# Lists and scripts written by era5_copy/make_era5_globus_script.sh when it runs in this folder
+era5_copy/list_*
+era5_copy/globus_copy_*.sh
