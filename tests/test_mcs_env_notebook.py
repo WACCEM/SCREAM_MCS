@@ -285,6 +285,65 @@ def test_relative_frequency(nb):
     assert n == 5 and np.allclose(centers, [0.5, 1.5, 2.5]) and np.allclose(freq, [40.0, 20.0, 20.0])
 
 
+def test_kde_frequency_is_the_smooth_version_of_relative_frequency(nb):
+    """Percent per bin width like relative_frequency: about 100 % over a wide range, follows the histogram of a large sample, is smoother for a small one, NaN without data."""
+    rng = np.random.default_rng(3)
+    lo, hi, nbins = -5.0, 5.0, 40
+    big = rng.normal(0.0, 1.0, 200_000)
+    x, kde, n = nb["kde_frequency"](big, lo, hi, nbins, 0.15)
+    width = (hi - lo) / nbins
+    assert n == big.size and x.size == nbins * 10 and x[0] == lo and x[-1] == hi
+    assert abs(kde.sum() * (x[1] - x[0]) / width - 100.0) < 1.0                       # the integral over the range, in bin widths, is the whole sample
+    centers, hist, _ = nb["relative_frequency"](big, lo, hi, nbins)
+    assert np.max(np.abs(np.interp(centers, x, kde) - hist)) < 0.4                       # the same numbers as the histogram (percent per bin), within the smoothing
+    # A small sample: the histogram is noisy, the KDE is smoother (total variation relative to the maximum)
+    small = big[:300]
+    _, kde_small, _ = nb["kde_frequency"](small, lo, hi, nbins, 0.4)
+    _, hist_small, _ = nb["relative_frequency"](small, lo, hi, nbins)
+    variation = lambda y: np.abs(np.diff(y)).sum() / y.max()                         # noqa: E731
+    assert variation(kde_small) < 0.8 * variation(hist_small)
+    # NaN is ignored; no valid value gives NaN everywhere and n = 0
+    assert nb["kde_frequency"]([1.0, 2.0, np.nan], lo, hi, nbins, 0.4)[2] == 2
+    _, empty, n_empty = nb["kde_frequency"]([np.nan], lo, hi, nbins, 0.4)
+    assert n_empty == 0 and np.isnan(empty).all()
+
+
+def test_load_env_applies_scales_after_the_mask(nb, tmp_path):
+    """A factor per variable (Qv850 to g/kg); variables that are not listed or not in the file are untouched; the mask counts are the same."""
+    path = tmp_path / "env.parquet"
+    write_env(path, env_rows())
+    plain, info_plain = nb["load_env"]([str(path)], 400, ["prw", "rh500"], 0.5)
+    scaled, info = nb["load_env"]([str(path)], 400, ["prw", "rh500"], 0.5, scales={"prw": 1000.0, "q850": 5.0})
+    assert np.allclose(scaled["prw"], 1000.0 * plain["prw"]) and np.array_equal(scaled["rh500"].to_numpy(), plain["rh500"].to_numpy(), equal_nan=True)
+    assert info["masked"] == info_plain["masked"] == {"prw": 0, "rh500": 1}
+
+
+def test_variables_have_kde_bandwidths_and_qv850_is_in_g_per_kg(nb):
+    """Every variable has a positive bandwidth smaller than a tenth of its range; Qv850 is converted to g/kg with a range of simple numbers."""
+    for name, spec in nb["VARIABLES"].items():
+        lo, hi = spec["pdf_range"]
+        assert 0 < spec["kde_bw"] < (hi - lo) / 10, name
+    q = nb["VARIABLES"]["q850"]
+    assert q["unit"] == "g/kg" and q["scale"] == 1000.0 and q["pdf_range"] == (5, 18)
+    assert all("scale" not in s for k, s in nb["VARIABLES"].items() if k != "q850")
+
+
+def test_plot_distributions_draws_the_kde_or_the_histogram(nb):
+    """PDF_STYLE 'kde' draws 10 points per bin, 'histogram' one per bin; both are smooth curves of the same sources."""
+    import matplotlib.pyplot as plt
+    rng = np.random.default_rng(5)
+    init = {("obs", "Ocean"): pd.DataFrame({v: rng.normal(np.mean(s["pdf_range"]), (s["pdf_range"][1] - s["pdf_range"][0]) / 8, 500) for v, s in nb["VARIABLES"].items()})}
+    sources = {"obs": nb["SOURCES"]["obs"]}
+    try:
+        for style, points in (("kde", nb["PDF_BINS"] * 10), ("histogram", nb["PDF_BINS"])):
+            nb["PDF_STYLE"] = style
+            fig = nb["plot_distributions"](init, "Ocean", sources=sources)
+            assert [len(ax.lines[0].get_xdata()) for ax in fig.axes[:6]] == [points] * 6
+            plt.close(fig)
+    finally:
+        nb["PDF_STYLE"] = "kde"
+
+
 def test_figures_are_made_and_saved_as_24_bit_png(nb, tmp_path):
     """The three figure functions run on synthetic composites (a source without some variables included) and the saved PNG has no alpha channel."""
     from PIL import Image
