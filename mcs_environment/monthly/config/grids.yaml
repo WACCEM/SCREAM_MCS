@@ -1,0 +1,40 @@
+# Shared settings of the monthly environment product: where the data go, the target grid, the source grids and the regridding method.
+# Every dataset config (ERA5.yaml, 3km_CTL.yaml, ...) names its source grid with the key `grid:` that must exist under `sources:` below.
+
+# Output folders: <data_root>/<dataset>/{native,latlon_1deg,climo} and the weight files in <maps_dir>
+data_root: /pscratch/sd/f/feng045/mcs_env/monthly
+maps_dir: /pscratch/sd/f/feng045/mcs_env/monthly/maps
+
+# Regridding: ESMF method and the options passed to ESMF_RegridWeightGen by ncremap (-W). The target is global, so no --dst_regional.
+# --ignore_unmapped leaves destination cells without weights empty (the two polar rows of the 1 degree grid for the ne30pg2 source).
+method: bilinear
+weight_options: "--no_log --ignore_unmapped --netcdf4"
+
+# The weights are applied by regrid_monthly.py with numpy. Source cells that are NaN in the native files (below-ground values at 850 hPa) are
+# handled as follows: a destination cell gets the weighted mean of the VALID source points if their weights add up to at least this fraction
+# of the cell's total weight; otherwise it is missing. Destination cells without any weight (the two polar rows of the 1 degree grid for the
+# ne30pg2 source) are missing. 1.0 = any missing source point in the stencil blanks the destination cell (a one-cell ring of missing data
+# around every masked region); 0.5 keeps the masked area close to the true below-ground area.
+valid_weight_fraction: 0.5
+
+# Deflate level of every output file (netCDF4, with shuffle)
+deflate: 4
+
+# Target grid: global 1 x 1 degree, cell centres -89.5 .. 89.5 and -179.5 .. 179.5 (the longitude convention of the 0.1 degree MCS maps).
+# `generate` is the ncremap -G grid string. For 0.5 .. 359.5 use lon_typ=Grn_wst.
+target:
+  name: g1deg
+  generate: "latlon=180,360#lat_typ=uni#lon_typ=180_wst"
+
+# Source grids. A grid is either an existing SCRIP file (`scrip`) or generated (`generate`).
+#   era5_025   ERA5 0.25 degree, 721 x 1440 with latitude points on the poles and longitude 0 .. 359.75; the native monthly files of this
+#              product are written with ascending latitude, the order of this grid
+#   ne30pg2    E3SM ne30pg2 (100 km) and SCREAM-decadal / Cess2 monthly files coarsened to ne30pg2 (21600 cells)
+#   ne120pg2   E3SM ne120pg2 (25 km, 345600 cells)
+sources:
+  era5_025:
+    generate: "latlon=721,1440#lat_typ=cap#lon_typ=Grn_ctr"
+  ne30pg2:
+    scrip: /global/cfs/cdirs/m1867/zfeng/E3SM_polun/maps/ne30pg2.nc
+  ne120pg2:
+    scrip: /global/cfs/cdirs/m1867/zfeng/E3SM_polun/maps/ne120pg2.nc

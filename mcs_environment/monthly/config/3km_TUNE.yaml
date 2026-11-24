@@ -1,0 +1,23 @@
+# 3-km TUNE: SCREAM Cess2 (ne1024, TUNE setting), monthly means on ne30pg2; same layout as 3km_CTL.yaml (see the comments there).
+
+name: 3km_TUNE
+label: "3-km TUNE (SCREAM Cess2 ne1024, monthly means on ne30pg2)"
+period: {start: 2019-08, end: 2021-02}      # the whole Cess2 record (19 months)
+calendar: noleap
+grid: ne30pg2
+
+streams:
+  monthly:
+    root: /pscratch/sd/w/wcmca1/SCREAMv1-cess2/run/output.1ma_ne30pg2
+    pattern: "1ma_ne30pg2.AVERAGE.nmonths_x1.{yyyy}-{mm}-01-00000.nc"
+    layout: ncol
+    pressure: {field: p_mid}
+
+    direct:
+      prw:    {raw: VapWaterPath}
+      wap500: {raw: omega_at_500hPa}
+      ps:     {raw: ps}
+
+    interpolate:
+      hus850: {raw: qv, plev_hpa: 850}
+      hur500: {raw: RelativeHumidity, plev_hpa: 500, scale: 100.0}

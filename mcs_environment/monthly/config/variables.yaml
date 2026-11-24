@@ -1,0 +1,39 @@
+# Dictionary of the output variables: CMIP names (CMIP6 `prw`, `hus`, `hur`, `wap`, `ps`; the pressure-level variables carry the level in
+# the name, as the CMIP6 daily `hus850`, `wap500` do). Every dataset config must use these names; the long name, standard name and
+# units written to the files come from here, so all sources are labelled identically.
+#   units        units of the output (raw values are converted with `scale` / `offset` in the dataset config)
+#   plev_hpa     pressure level of the variable (a dataset config must use the same level for it)
+#   valid_range  [min, max] of plausible monthly-mean values, used by check_env_monthly.py to catch unit mistakes
+
+prw:
+  long_name: "Water Vapor Path"
+  standard_name: atmosphere_mass_content_of_water_vapor
+  units: "kg m-2"
+  valid_range: [0.0, 90.0]
+
+hus850:
+  long_name: "Specific Humidity at 850 hPa"
+  standard_name: specific_humidity
+  units: "1"
+  plev_hpa: 850
+  valid_range: [0.0, 0.03]
+
+hur500:
+  long_name: "Relative Humidity at 500 hPa"
+  standard_name: relative_humidity
+  units: "%"
+  plev_hpa: 500
+  valid_range: [0.0, 110.0]
+
+wap500:
+  long_name: "Omega (=dp/dt) at 500 hPa"
+  standard_name: lagrangian_tendency_of_air_pressure
+  units: "Pa s-1"
+  plev_hpa: 500
+  valid_range: [-5.0, 5.0]        # monthly means reach 3.4 over steep terrain (Andes, Himalaya, ps 580-720 hPa) at 25 km
+
+ps:
+  long_name: "Surface Air Pressure"
+  standard_name: surface_air_pressure
+  units: "Pa"
+  valid_range: [45000.0, 110000.0]

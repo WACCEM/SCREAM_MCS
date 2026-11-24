@@ -1,0 +1,23 @@
+# 100-km: E3SM ne30pg2 (21600 columns, 64 levels), monthly means (h0), dims (time, lev, ncol). See 3km_CTL.yaml for the groups.
+
+name: 100km
+label: "100-km (E3SM ne30pg2)"
+period: {start: 2009-01, end: 2020-12}
+calendar: noleap
+grid: ne30pg2
+
+streams:
+  h0:
+    root: /pscratch/sd/p/plma/e3sm_scratch/egu2025/ctl.fr/run
+    pattern: "ctl.fr.eam.h0.{yyyy}-{mm}.nc"
+    layout: ncol
+    pressure: {hybrid: {ps: PS, a: hyam, b: hybm, p0: P0}}
+
+    direct:
+      prw:    {raw: TMQ}                    # kg m-2
+      ps:     {raw: PS}                     # Pa
+      wap500: {raw: OMEGA500}               # Pa s-1, the model's own 500 hPa diagnostic
+
+    interpolate:
+      hus850: {raw: Q, plev_hpa: 850}       # kg kg-1
+      hur500: {raw: RELHUM, plev_hpa: 500}  # %

@@ -1,0 +1,25 @@
+# 25-km: E3SMv3 ne120 (ne120pg2, 345600 columns, 80 levels), monthly means (h0), dims (time, lev, ncol). See 3km_CTL.yaml for the groups.
+
+name: 25km
+label: "25-km (E3SMv3 ne120)"
+period: {start: 2009-01, end: 2011-12}
+calendar: noleap
+grid: ne120pg2
+
+streams:
+  h0:
+    root: /pscratch/sd/p/plma/e3sm_scratch/v3/E3SMv3_ne120/run
+    pattern: "E3SMv3_ne120.eam.h0.{yyyy}-{mm}.nc"
+    layout: ncol
+    # Hybrid sigma-pressure levels: p = a * p0 + b * ps. The monthly-mean level pressure is exactly the monthly mean of the instantaneous
+    # pressures when ps is the monthly-mean surface pressure.
+    pressure: {hybrid: {ps: PS, a: hyam, b: hybm, p0: P0}}
+
+    direct:
+      prw: {raw: TMQ}                       # kg m-2
+      ps:  {raw: PS}                        # Pa
+
+    interpolate:
+      hus850: {raw: Q, plev_hpa: 850}       # kg kg-1
+      hur500: {raw: RELHUM, plev_hpa: 500}  # already %; the monthly mean of the model's RH (same meaning as ERA5 R and SCREAM RelativeHumidity)
+      wap500: {raw: OMEGA, plev_hpa: 500}   # Pa s-1

@@ -1,0 +1,57 @@
+# ERA5 (observations): 0.25 degree, 721 x 1440. One stream per file family, because the variables come from different files.
+# See 3km_CTL.yaml for the meaning of the groups direct / plev_select / interpolate.
+#
+# ERA5 pressure-level data are already on pressure levels (37 levels), so the level is picked (plev_select), nothing is interpolated.
+# ERA5 stores extrapolated values below the ground: plev_select variables with `mask_below_ground: ps` are set to NaN where the
+# monthly-mean surface pressure is smaller than the level (needs the variable `ps`, which comes from the `sp` stream).
+# `expected_records_per_day` (hourly data): the number of records of the month is compared with it and recorded in the file attributes.
+
+name: ERA5
+label: "ERA5 (0.25 degree)"
+period: {start: 2007-01, end: 2017-12}      # the MCS-IDC observation period
+calendar: standard
+grid: era5_025
+
+streams:
+  # Monthly means of Q on pressure levels (one record per file, time = start of the month)
+  q_monthly:
+    root: /global/cfs/projectdirs/m3522/cmip6/ERA5/e5.oper.an.pl.monthly
+    pattern: "e5.oper.an.pl.128_133_q.ll025sc.{yyyy}{mm}.nc"
+    layout: latlon
+    plev_select:
+      hus850: {raw: Q, plev_hpa: 850, mask_below_ground: ps}      # kg kg-1
+
+  # Monthly means of R (relative humidity: mixed phase in ERA5, liquid only in the models)
+  r_monthly:
+    root: /global/cfs/projectdirs/m3522/cmip6/ERA5/e5.oper.an.pl.monthly
+    pattern: "e5.oper.an.pl.128_157_r.ll025sc.{yyyy}{mm}.nc"
+    layout: latlon
+    plev_select:
+      hur500: {raw: R, plev_hpa: 500, mask_below_ground: ps}      # %
+
+  # There is no monthly W: the daily files of hourly W (37 levels per record) are averaged. This is the copy on pscratch (2006-12 .. 2018-01).
+  w_hourly:
+    root: /pscratch/sd/w/wcmca1/ERA5/e5.oper.an.pl
+    pattern: "{yyyy}{mm}/e5.oper.an.pl.128_135_w.ll025sc.*.nc"
+    layout: latlon
+    expected_records_per_day: 24
+    plev_select:
+      wap500: {raw: W, plev_hpa: 500, mask_below_ground: ps}      # Pa s-1
+
+  # Hourly total column water vapour in one file per month: mean over all hourly records
+  tcwv_hourly:
+    root: /global/cfs/projectdirs/m3522/cmip6/ERA5/e5.oper.an.sfc
+    pattern: "{yyyy}{mm}/e5.oper.an.sfc.128_137_tcwv.ll025sc.*.nc"
+    layout: latlon
+    expected_records_per_day: 24
+    direct:
+      prw: {raw: TCWV}                                            # kg m-2
+
+  # Hourly surface pressure: monthly mean, used for the below-ground mask and written as `ps`
+  sp_hourly:
+    root: /global/cfs/projectdirs/m3522/cmip6/ERA5/e5.oper.an.sfc
+    pattern: "{yyyy}{mm}/e5.oper.an.sfc.128_134_sp.ll025sc.*.nc"
+    layout: latlon
+    expected_records_per_day: 24
+    direct:
+      ps: {raw: SP}                                               # Pa

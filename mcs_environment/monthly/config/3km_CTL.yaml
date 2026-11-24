@@ -1,0 +1,35 @@
+# 3-km CTL: SCREAM-decadal ne1024, monthly means coarsened to ne30pg2 (21600 columns, 128 model levels, dims (time, ncol, lev)).
+# Copy this file for another SCREAM set with the same layout (13-km CTL / TUNE, ...): change name, label, period, grid, root and pattern.
+#
+# How a variable is obtained (the group it is listed in):
+#   direct       a 2-D variable that exists in the files: read as it is
+#   plev_select  a 3-D variable already on pressure levels (ERA5): the level plev_hpa is picked, nothing is interpolated
+#   interpolate  a 3-D variable on model levels: interpolated linearly in ln(p) to plev_hpa, with the level pressure of `pressure:`
+# `scale` / `offset` convert the raw values to the units of config/variables.yaml (value * scale + offset); names on the left are the
+# CMIP names of config/variables.yaml.
+
+name: 3km_CTL
+label: "3-km CTL (SCREAM-decadal ne1024, monthly means on ne30pg2)"
+period: {start: 1995-01, end: 2005-12}      # months processed (the MCS climatology period)
+calendar: noleap
+grid: ne30pg2                               # key of config/grids.yaml (weights are made once per grid)
+# Months whose input file is empty (25 KB, no time record, found 2026-11-23); they are left out of the climatology (see `nmonths`)
+known_missing_months: [1995-08, 1996-09, 1996-12, 1997-11, 1998-02]
+
+streams:
+  monthly:
+    root: /pscratch/sd/w/wcmca1/SCREAM-decadal/output.scream.decadal.monthlyAVG_ne30pg2
+    # {yyyy} {mm} = year and month; the file name month is the START of the averaging window (checked against time_bnds)
+    pattern: "output.scream.decadal.monthlyAVG_ne30pg2.AVERAGE.nmonths_x1.{yyyy}-{mm}-01-00000.nc"
+    layout: ncol
+    # Pressure of the model levels: this file stores the monthly-mean level pressure (there is no P0 / hybrid coefficient set)
+    pressure: {field: p_mid}
+
+    direct:
+      prw:    {raw: VapWaterPath}           # kg m-2
+      wap500: {raw: omega_at_500hPa}        # Pa s-1, the model's own 500 hPa diagnostic
+      ps:     {raw: ps}                     # Pa
+
+    interpolate:
+      hus850: {raw: qv, plev_hpa: 850}                              # kg kg-1
+      hur500: {raw: RelativeHumidity, plev_hpa: 500, scale: 100.0}  # fraction -> %
