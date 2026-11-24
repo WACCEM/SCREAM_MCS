@@ -534,9 +534,12 @@ model − OBS bias of every simulation, and the cos(latitude)-weighted zonal mea
   (`/global/cfs/cdirs/wcm_shr/gsharing/MCS_Global/V3/MCSMIP/stats_mcsmip/monthly`). Every one of these files was compared byte for byte with the pscratch copy the notebooks used before, the
   three notebooks were re-run on the CFS inputs and **all 25 output files (figures, CSV, HTML) are byte-identical** to the pscratch-based run, the OBS band cache identical in all arrays.
   Only the figures, tables and the band cache are written to pscratch.
-- **Zonal-mean panel:** the legend (one column) is outside the axes, at their upper right, and may reach into the right margin of the figure (the saved file is cropped tight); if it would touch the
-  bias colorbar (a zonal row below the maps) it goes to the right of the colorbar. The y range has only 10 % headroom above the lines (`zonal_headroom = 0.1`), so that the lines fill the axes.
-  `zonal_legend_outside = False` and `zonal_headroom = 0.9` give the old legend inside the axes.
+- **Zonal-mean panel (layout of 2026-11-23, the same as in `plot_global_env_climo_scream_e3sm_obs.ipynb`):** the legend is at the top of the zonal axes with its upper right corner at the
+  right edge of the bias colorbar (with its tick labels and label), so that it does not reach beyond the colorbar. The OBS line and its interannual band are **one** legend entry
+  (`OBS (2007-2017)`, the gray shading under the black line). The columns are set per variable in `zonal_legend_ncol_by_var` (2 for the cloud frequency and the precipitation, 3 for the
+  fraction), and `zonal_ymax_by_var` gives the upper y limit to start from (100 % for the fraction). After the legend is placed the y axis is raised until no line or band touches it
+  (`extend_ylim_for_legend`), so the fraction panel ends slightly above 100 % (about 110 %): the three-row legend would otherwise cover the peaks of the 13-km runs near 10 degrees N.
+  Tests: `tests/test_rainmap_notebook.py`. `zonal_legend_outside = False` and `zonal_headroom = 0.9` give the old legend inside the axes.
 - **Configuration:** one cell with all paths, labels, colors, levels, seasons and options
   (`font_scale`, `figsize`, `aspect`, `zonal_slot`, `show_obs_iqr`, `obs_iqr_method`). The notebooks of this evaluation
   use the `STIXGeneral` font (set in the imports cell). Kernel `pyflex26_3`. Figures go to
@@ -551,7 +554,7 @@ a summary figure. It uses the same functions and Configuration style as the note
 lists the runs that are not finished. Its inputs are on CFS too: the working set of the ten sensitivity runs (per run the
 1-year climatology and the final row folder) in `E3SM_polun/<model>_remap_0.1deg/mcs_tbpf_sens/heavyrain_<tag>/2010/stats`, the baseline climatologies in
 `mcs_tbpf_sens/baseline_2010/monthly` (made from the CFS production maps) and the baseline rows in `mcs_tbpf/stats`; the full run folders are on pscratch and in HPSS (`docs/hpss_e3sm.md`).
-The zonal panel has the same legend and y range as the maps notebook.
+The zonal panel has the earlier legend layout of the maps notebook (one column, to the right of the axes); the layout of 2026-11-23 is only in the maps notebooks.
 
 #### `Notebooks/plot_tropical_mcs_trackstats_all_sources.ipynb`
 

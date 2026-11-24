@@ -123,7 +123,7 @@ success), and the parent assembles the year into one file. Rows without a snapsh
 * Alignment on real data (3-km CTL, 1996, 38,253 tracks): the snapshot shift `env_dt_hours` of the 3-hourly stream is -1, 0 or +1 h for one third of the tracks each and constant within every track; that of the 6-hourly
   `prw` stream is spread evenly over -3 ... +2 h. Composite of the 100-km source (30,998 tracks, 400-km circles): every track has a row in each bin from -24 h to +3 h; prw 51.8 -> 53.8 kg m-2 and rh850 83.9 -> 86.8 %
   between -24 h and the start, omega500 -0.12 -> -0.26 Pa s-1 (peak -0.28 at +3 h), pr 0.60 -> 1.06 mm h-1 (peak 1.15 at +3 h).
-* **Full records** (production folder `$SCRATCH/mcs_env`, promoted from the staging folder on 2026-11-21: 56 files, 3.4 GB, names and sizes checked; final code v1.1.0, 128 workers, `check_mcs_env_output.py --brute-force`): 100-km 2009-2020, 25-km 2009-2011, 3-km CTL 1995-2005 and 3-km TUNE 2019-2021 (the whole Cess2 record) pass for
+* **Full records** (production folder `$SCRATCH/mcs_env`, copied to CFS on 2026-11-23 (see "Data on CFS" below), promoted from the staging folder on 2026-11-21: 56 files, 3.4 GB, names and sizes checked; final code v1.1.0, 128 workers, `check_mcs_env_output.py --brute-force`): 100-km 2009-2020, 25-km 2009-2011, 3-km CTL 1995-2005 and 3-km TUNE 2019-2021 (the whole Cess2 record) pass for
   every year (29 of 29 files, 3,244 independently recomputed values agree). **OBS (ERA5) 2007-2017** (2026-11-21, from the user's pscratch copy): 11 yearly files with 29,155 to 31,704 tracks and 3.68 to 3.98 M rows each,
   42,341,919 rows in the combined file (980 MB), 0 samples without an ERA5 snapshot in every year, every year passes all checks with 120 (2007: 240) independently recomputed values and 0 mismatches. A year takes 11-12 min with
   128 workers on one node (14 min per year when two nodes read ERA5 at the same time; the work is I/O-bound).
@@ -150,7 +150,7 @@ success), and the parent assembles the year into one file. Rows without a snapsh
 of Paccini et al. (2026) **inside the notebook**, splits them into ocean and land tracks with `pf_landfrac` (the convention of `plot_tropical_mcs_trackstats_all_sources.ipynb`: ocean = lifetime maximum
 < 0.1, land = lifetime minimum > 0.9) and makes the distributions at initiation (her Fig. 4) and the median evolution -24 ... +24 h with the ERA5 interquartile range (her Fig. 5), plus the mean evolution of
 `analyze_envvars_evolution.ipynb`. Only the *Configuration* cell is edited (files of the sources, circle diameter = 400 km = 200-km radius, filter parameters); the track file is taken from the metadata of the
-environment file. The notebook reads the production folder `$SCRATCH/mcs_env/<source>/` and writes figures, composite tables and the robust track lists to `$SCRATCH/mcs_env/figures/`; the plots have a dotted grid above the shaded band. Run it on a compute node (`jupyter nbconvert --execute`, kernel `pyflex26_3`, one minute).
+environment file. Since 2026-11-23 the notebook reads the CFS copy `/global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/mcs_env/<source>/` and writes figures, composite tables and the robust track lists to `/global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/figures_resolution/mcs_env/` (the earlier outputs are in `$SCRATCH/mcs_env/figures/`); the plots have a dotted grid above the shaded band. Run it on a compute node (`jupyter nbconvert --execute`, kernel `pyflex26_3`, one minute).
 
 The criteria (tropics; first two steps non-MCS; MCS steps in one unbroken block; `isnan(start_split_cloudnumber) & isnan(end_merge_cloudnumber)`; `mcs_status` = 1 at the maximum of `total_rain`; duration <= 95th percentile
 of the tracks that pass the others, per source and surface) are in `select_robust_tracks` / `apply_criteria`; the notebook prints the funnel and a **variants table** with the counts that the choices of the GSRM
@@ -163,3 +163,31 @@ split_merge='status', ocean_rule='sum', duration_pct=None`) the functions reprod
 
 `era5_copy/README.md` (step-by-step Globus guide), `era5_copy/make_era5_globus_script.sh`, `verify_era5_copy.sh`. Code: `mcsenv/` (`config`, `derive`, `grid`, `tracks`, `fileindex`, `readers`, `extract`,
 `outputs`), `extract_mcs_env.py`, `combine_mcs_env.py`, `gen_mcs_env_jobs.py` + `slurm_template.sh`, `check_mcs_env_output.py`, `validate_humidity_formulas.py`; tests in `../tests/test_mcs_env_*.py`.
+
+## Data on CFS (inventory, copy of 2026-11-23)
+
+The processed near-storm environment is archived on CFS in `/global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/mcs_env/<source>/` (45 Parquet files, 3.62 GB; group m1867). It is a plain copy of the pscratch production folder
+`$SCRATCH/mcs_env` (`rsync -rt`, nothing deleted); a full-checksum dry run (`rsync -rcn`) reports no difference and the byte count agrees. Same file names as on pscratch; per source one file per year,
+`mcs_env_<source>_<year>.parquet`, and one combined file `mcs_env_<source>_tropics_<first>_<last>.parquet` (what the composite notebook reads). Version 1.1.0 of the code, circle diameters 200 / 400 / 600 km,
+nominal relative-time grid from -24 h (columns and units: "Output file" above).
+
+| source | years | files (yearly + combined) | size (yearly files; the combined file is as large) | rows of the combined file | tracks | time step | variables | track statistics (CFS) |
+|---|---|---|---|---|---|---|---|---|
+| `OBS` (ERA5 + MCSMIP tracks) | 2007-2017 | 11 + 1 | 980 MB | 42,341,919 | 337,321 | 1 h | prw q850 rh850 rh500 omega850 omega500 | `mcs_global_v3/MCSMIP/stats/` |
+| `3km_CTL` | 1995-2005 | 11 + 1 | 454 MB | 17,695,566 | 413,609 | 3 h | prw q850 rh850 rh500 omega850 omega500 pr | `ne1024/stats/` |
+| `3km_TUNE` (Cess2) | 2019-2021 | 3 + 1 | 56 MB | 2,239,533 | 54,010 | 3 h | the same (`prw` only until 2020-04-10) | `E3SM/SCREAMv1/cess2/global/mcs/stats/` |
+| `25km` | 2009-2011 | 3 + 1 | 224 MB | 9,633,204 | 66,786 | 1 h | prw q850 rh850 rh500 omega500 pr | `E3SM_polun/ne120_remap_0.1deg/mcs_tbpf_hr2p0/stats/` |
+| `100km` | 2009-2020 | 12 + 1 | 98 MB | 6,028,419 | 30,998 | 1 h | prw rh850 omega500 pr | `E3SM_polun/ne30_remap_0.1deg/mcs_tbpf_hr2p0/stats/` |
+
+(the track statistics paths are relative to `/global/cfs/cdirs/m1867/zfeng/`; the environment files name their track file in their metadata, so the join always uses the matching one). Not copied: the extraction caches
+`_index` / `_parts`, the old figures and tables in `$SCRATCH/mcs_env/figures/` (the composite notebook regenerates them) and `mcs_env_dev`. The 13-km sets are not processed yet. The composite notebook reads this copy and writes its
+figures, composite tables and robust-track lists to `/global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/figures_resolution/mcs_env/` (running it on the CFS copy reproduces the earlier tables and robust-track lists exactly). The processing folder stays on pscratch;
+after a new extraction copy it again with
+`rsync -rt --no-owner --no-group --no-perms --chmod=D2770,F660 --exclude=/figures --exclude=/monthly --exclude=_index --exclude=_parts $SCRATCH/mcs_env/ /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/mcs_env/`.
+The monthly maps (`monthly/`) are in `/global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/monthly_env/` (see `monthly/README.md`).
+
+## Monthly-mean environment maps (1 degree)
+
+`monthly/` makes the map companion of this product: monthly-mean `prw`, `hus850`, `hur500`, `wap500` (CMIP names) of ERA5 and the SCREAM / E3SM runs on a global
+1 degree grid, 12-month climatologies, and the notebook `../Notebooks/plot_global_env_climo_scream_e3sm_obs.ipynb` (ERA5 and model-minus-ERA5 maps, 60S-60N). One
+config file per dataset, shared code in `monthly/envmonthly/`; see `monthly/README.md`.
