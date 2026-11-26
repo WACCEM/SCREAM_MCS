@@ -32,7 +32,8 @@ per-year script generation described below is only needed for the decadal runs.
 - Activate: `module load python && source activate /global/common/software/m1867/python/pyflex26.3`
 - Driver: `PyFLEXTRKR-dev/runscripts/run_mcs_tbpf_mcsmip.py <config.yml> <scheduler_file>`
 
-All scripts below live in `tracking_decadal/` unless noted otherwise.
+All scripts below live in `mcs_resolution/tracking/obs_scream_decadal/` unless noted otherwise. Which config, statistics file and code version made each
+data set, and where everything is, is listed in [mcs_resolution/README.md](mcs_resolution/README.md).
 
 ---
 
@@ -44,7 +45,7 @@ substituting `STARTDATE`, `ENDDATE`, and `YEAR` placeholders in template files.
 **SCREAM** (`gen_scream_tracking_scripts.py`):
 
 ```bash
-cd tracking_decadal/
+cd mcs_resolution/tracking/obs_scream_decadal/
 
 # Write config YAMLs + Slurm scripts for all years (default: 1995–2005)
 python gen_scream_tracking_scripts.py
@@ -85,14 +86,15 @@ Each generated config YAML controls the full PyFLEXTRKR pipeline
 Key per-dataset settings: `clouddata_path`, `root_path` (output root), `databasename`
 (file prefix), `startdate`/`enddate`.
 
-Slurm log files are written to `tracking_decadal/logs/` (created automatically).
+Slurm log files are written to `mcs_resolution/tracking/obs_scream_decadal/jobs/logs/` (created automatically). The generated configs, job scripts and logs of the
+production runs are in `mcs_resolution/tracking/obs_scream_decadal/as_run/`.
 
 ---
 
 ### Step 1b — Tracking performance and conservative Slurm sizing
 
 Measured wallclock times per simulation-year (full pipeline, 8 nodes / 1,024 workers,
-from `tracking_decadal/logs/`):
+from `mcs_resolution/tracking/obs_scream_decadal/as_run/logs/`):
 
 | Dataset | Wallclock range | Mean | `--time` in template |
 |---------|----------------|------|---------------------|
@@ -105,7 +107,7 @@ from `tracking_decadal/logs/`):
 - The **ne1024 runtime is dominated by `idfeature`** (~7.7 h to identify cloud objects
   from 8,760 hourly files). The remaining steps (track linking through speed) 
   take another ~6–8 h.
-- Some `tracking_decadal/logs/log_SCREAM_1995..2002.log` entries show only ~1.4–2 h
+- Some `mcs_resolution/tracking/obs_scream_decadal/as_run/logs/log_SCREAM_1995..2002.log` entries show only ~1.4–2 h
   because those particular runs had `run_idfeature` … `run_identifymcs` set to `False` in
   the config (partial re-runs of the `matchpf`→`speed` tail only). The full-pipeline cost
   is reflected in the 2003–2005 logs.
@@ -123,8 +125,8 @@ from `tracking_decadal/logs/`):
 
 #### Step 2a — Monthly MCS precipitation maps (NERSC TaskFarmer)
 
-**Script:** `tracking_decadal/gen_scream_mcs_monthly_stats_taskfarmer.py` (SCREAM) /
-`tracking_decadal/gen_imerg_mcs_monthly_stats_taskfarmer.py` (OBS)
+**Script:** `mcs_resolution/tracking/obs_scream_decadal/gen_scream_mcs_monthly_stats_taskfarmer.py` (SCREAM) /
+`mcs_resolution/tracking/obs_scream_decadal/gen_imerg_mcs_monthly_stats_taskfarmer.py` (OBS)
 
 **What it does:** Generates a TaskFarmer tasklist and Slurm submission script. Each task
 calls wrapper `scripts/run_mcs_monthly_rainmap_latlon.sh <config.yml> <year> <month>`,
@@ -138,12 +140,12 @@ statistics, and produces a monthly MCS precipitation map file.
 **Output:** Monthly `mcs_rainmap_YYYYMM*.nc` files under `<root_path>/stats/monthly/`
 
 **Peak memory:** ~6 GB per task (measured; see
-`tracking_decadal/logs/log_mcs_monthly_rainmap_SCREAM_decadal.log`).
+`mcs_resolution/tracking/obs_scream_decadal/as_run/logs/log_mcs_monthly_rainmap_SCREAM_decadal.log`).
 Default `THREADS=12` (concurrent tasks/node) is conservative — a 512 GB Perlmutter node
 can safely run far more; raise `--threads` to 24–48 for faster throughput.
 
 ```bash
-cd tracking_decadal/
+cd mcs_resolution/tracking/obs_scream_decadal/
 
 # Generate tasklist + Slurm script (SCREAM, default 1995-01 to 2005-12)
 python gen_scream_mcs_monthly_stats_taskfarmer.py
@@ -279,9 +281,9 @@ python scripts/combine_filter_mcs_trackstats.py \
 
 **Cess2 re-run with row tables (SCREAM 3 km TUNE).** The 2026-01 Cess2 statistics were made with
 an older PyFLEXTRKR that did not write `total_volrain` / `total_heavyvolrain` (the converter fills
-such a column with NaN and prints a warning). `tracking/slurm_SCREAM-Cess2_stats_rerun.sh` re-runs
+such a column with NaN and prints a warning). `mcs_resolution/tracking/scream_cess2/slurm_SCREAM-Cess2_stats_rerun.sh` re-runs
 identifymcs, matchpf, robustmcs and speed (not mapfeature) with `stats_format: rows`
-(`tracking/config_mcs_tbpf_SCREAMv1-Cess2_rows.yml`; 4 nodes, about 30 minutes) in a new root
+(`mcs_resolution/tracking/scream_cess2/config_mcs_tbpf_SCREAMv1-Cess2_rows.yml`; 4 nodes, about 30 minutes) in a new root
 `/pscratch/sd/f/feng045/SCREAM-decadal/cess2/mcs_rerun/` that links the old cloudid and pixel
 files, so the old tree is untouched. The speed step reads the old pixel files, which is valid
 only because the new robust MCS set is identical to the old one (79,370 tracks, same start times
@@ -299,7 +301,7 @@ log), the 4 row folders, the new dense final file and the two combined Parquet f
 ```bash
 # interactive allocation (own, account m1657), then on its first node:
 salloc --no-shell -A m1657 -C cpu -q interactive -N 4 -t 01:30:00 -J cess2_rerun
-bash tracking/slurm_SCREAM-Cess2_stats_rerun.sh <jobid> 4      # logs in <root>/logs/
+bash mcs_resolution/tracking/scream_cess2/slurm_SCREAM-Cess2_stats_rerun.sh <jobid> 4      # logs in <root>/logs/
 python scripts/combine_filter_mcs_trackstats.py --indir <root>/stats --pattern 'mcs_tracks_final_*.rows' \
     --region tropics --outdir <root>/parquet
 ```
@@ -363,7 +365,7 @@ sbatch slurm.submit_mergir_missing_data.sh
 
 #### Step 2e — E3SM `heavy_rainrate_thresh` sensitivity (one year, several thresholds)
 
-**Script:** `tracking_e3sm/gen_heavyrain_sensitivity.py`
+**Script:** `mcs_resolution/tracking/e3sm/gen_heavyrain_sensitivity.py`
 
 **Why:** E3SM at 25 and 100 km has far fewer MCSs than observed, because the MCSMIP
 definition needs the maximum precipitation-feature rain rate to exceed `heavy_rainrate_thresh`
@@ -381,9 +383,9 @@ Nothing is submitted without `--submit`; the production folders are never writte
 
 ```bash
 # control run: the production value must reproduce the production outputs exactly
-python tracking_e3sm/gen_heavyrain_sensitivity.py --models ne120 --thresholds 10.0
+python mcs_resolution/tracking/e3sm/gen_heavyrain_sensitivity.py --models ne120 --thresholds 10.0
 # the tests (10 jobs, about 10 node-hours and about 1 TB of pixel files); add --submit to sbatch
-python tracking_e3sm/gen_heavyrain_sensitivity.py --models ne120 ne30 --thresholds 5.0 3.0 2.0 1.5 1.0
+python mcs_resolution/tracking/e3sm/gen_heavyrain_sensitivity.py --models ne120 ne30 --thresholds 5.0 3.0 2.0 1.5 1.0
 # baseline climatology: the production year with the same script
 python scripts/calc_mcs_rainmap_climo_from_monthly.py --indir <root>/2010/stats/monthly \
     --outdir <root>_sens/baseline_2010/monthly --start-date 2010-01 --end-date 2010-12
@@ -394,7 +396,7 @@ python scripts/calc_mcs_rainmap_climo_from_monthly.py --indir <root>/2010/stats/
 are not run again; the run tree of an existing run is never emptied by the script:
 
 ```bash
-python tracking_e3sm/gen_heavyrain_sensitivity.py --models ne30 --thresholds 3.0 2.0 1.5 1.0 \
+python mcs_resolution/tracking/e3sm/gen_heavyrain_sensitivity.py --models ne30 --thresholds 3.0 2.0 1.5 1.0 \
     --code-dir <pinned worktree> --skip-completed-steps --time 01:00:00 --submit
 ```
 
@@ -419,14 +421,14 @@ precipitation-feature threshold is 2.0 mm/h), so 2.0 was chosen for ne30 and ne1
     <year>/            tracking and the identifymcs output are links to mcs_tbpf/<year>; stats/ (row tables, dense file, monthly/ rain maps,
                        trackpcp_*), mcstracking/ (pixel files), profile/ (step ledger)
     campaign_<year>/   config, Slurm script and logs of the year (one job of one node)
-    stats/, monthly/   across the years (links), made by tracking_e3sm/finalize_production_tree.py, plus the combined Parquet files
+    stats/, monthly/   across the years (links), made by mcs_resolution/tracking/e3sm/finalize_production_tree.py, plus the combined Parquet files
                        and the multi-year climatology
 ```
 
 ```bash
-python tracking_e3sm/gen_heavyrain_sensitivity.py --production --models ne120 --years 2009 2010 2011 --thresholds 2.0 \
+python mcs_resolution/tracking/e3sm/gen_heavyrain_sensitivity.py --production --models ne120 --years 2009 2010 2011 --thresholds 2.0 \
     --code-dir <pinned worktree> --time 03:00:00 --submit                  # then the same for --models ne30 --years 2009 ... 2020
-python tracking_e3sm/finalize_production_tree.py --models ne120 ne30 --tag 2p0    # after all years are done; prints the next commands
+python mcs_resolution/tracking/e3sm/finalize_production_tree.py --models ne120 ne30 --tag 2p0    # after all years are done; prints the next commands
 ```
 
 The control run is compared with production by `PyFLEXTRKR-dev/tests/tbpf_compare.py` (row

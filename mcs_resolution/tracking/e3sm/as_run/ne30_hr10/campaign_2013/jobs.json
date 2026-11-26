@@ -1,0 +1,106 @@
+[
+ {
+  "name": "track201301",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201301.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201301.yml"
+ },
+ {
+  "name": "track201302",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201302.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201302.yml"
+ },
+ {
+  "name": "track201303",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201303.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201303.yml"
+ },
+ {
+  "name": "track201304",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201304.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201304.yml"
+ },
+ {
+  "name": "track201305",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201305.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201305.yml"
+ },
+ {
+  "name": "track201306",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201306.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201306.yml"
+ },
+ {
+  "name": "track201307",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201307.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201307.yml"
+ },
+ {
+  "name": "track201308",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201308.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201308.yml"
+ },
+ {
+  "name": "track201309",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201309.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201309.yml"
+ },
+ {
+  "name": "track201310",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201310.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201310.yml"
+ },
+ {
+  "name": "track201311",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201311.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201311.yml"
+ },
+ {
+  "name": "track201312",
+  "kind": "track",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_track201312.sh",
+  "needs": [],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_track201312.yml"
+ },
+ {
+  "name": "stats201301_201312",
+  "kind": "stats",
+  "script": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/slurm_stats201301_201312.sh",
+  "needs": [
+   "track201301",
+   "track201302",
+   "track201303",
+   "track201304",
+   "track201305",
+   "track201306",
+   "track201307",
+   "track201308",
+   "track201309",
+   "track201310",
+   "track201311",
+   "track201312"
+  ],
+  "config": "/pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf/campaign_2013/config_mcs_tbpf_e3sm_ne30_0p1deg_template_stats201301_201312.yml"
+ }
+]

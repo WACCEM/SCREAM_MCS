@@ -1,0 +1,87 @@
+# Data sources of the Sahel MCS animations (MCS resolution-sensitivity study): read by select_sahel_periods.py and
+# make_mcs_animation_sahel.py. The keys are those of the SOURCES dictionary in Notebooks/plot_tropical_mcs_trackstats_all_sources.ipynb.
+#
+# Per source:
+#   label             name in printed tables
+#   title             title prefix of the map frames
+#   config_file       tracking config of the run (the plotting code reads pixel_radius, file name bases, ... from it)
+#   trackstats_file   the YEARLY final MCS statistics that numbered the tracks of the pixel files (pixel cloudtracknumber N = row N-1).
+#                     Do not use the combined Parquet here: it renumbers the tracks
+#   pixel_path        folder of the pixel-level files mcstrack_YYYYMMDD_hhmmss.nc
+#   selection_parquet combined global Parquet (the file the analysis notebooks are made from), used only to choose the period
+#   start             first day of the animation (the period is `ndays` days). Chosen with select_sahel_periods.py, see README.md
+#
+# {year} and {next} in a path are the year of the start day and the following year. A relative config_file is relative to the
+# scream repository.
+
+# Settings shared by all sources
+common:
+  ndays: 7
+  months: [5, 6, 7, 8, 9]                                                          # May to September
+  map_box: {lon_min: -20.0, lon_max: 40.0, lat_min: 0.0, lat_max: 30.0}            # map of the animations
+  core_box: {lon_min: -18.0, lon_max: 35.0, lat_min: 5.0, lat_max: 20.0}           # box in which the period is ranked
+  outdir: /pscratch/sd/f/feng045/SCREAM-decadal/mcs_animations_sahel
+
+sources:
+  obs:
+    label: OBS (IMERG V7)
+    title: "OBS GPM Tb+IMERG V07"
+    config_file: /global/cfs/cdirs/wcm_shr/gsharing/MCS_Global/V3/MCSMIP/config_mcs_tbpf_imergv7_mcsmip.yml
+    trackstats_file: /global/cfs/cdirs/wcm_shr/gsharing/MCS_Global/V3/MCSMIP/stats_mcsmip/mcsmip_mcs_tracks_final_{year}0101.0000_{next}0101.0000.nc
+    pixel_path: /global/cfs/cdirs/wcm_shr/gsharing/MCS_Global/V3/MCSMIP/mcstracking_mcsmip/{year}0101.0000_{next}0101.0000/
+    selection_parquet: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/mcs_global_v3/MCSMIP/stats/mcs_tracks_final_combined_global_2007_2017.parquet
+    start: '2007-08-26'   # rank 1 of select_sahel_periods.py
+
+  scream3_ctl:
+    label: 3-km CTL (SCREAM ne1024)
+    title: "SCREAM 3-km CTL"
+    config_file: mcs_resolution/tracking/obs_scream_decadal/as_run/config_mcs_tbpf_SCREAM_decadal_{year}.yml
+    trackstats_file: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/ne1024/stats/mcs_tracks_final_{year}0101.0000_{next}0101.0000.nc
+    pixel_path: /pscratch/sd/w/wcmca1/SCREAM-decadal/mcs_tbpf/ne1024/{year}/mcstracking/{year}0101.0000_{next}0101.0000/
+    selection_parquet: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/ne1024/stats/mcs_tracks_final_combined_global_1995_2005.parquet
+    start: '2003-07-22'   # rank 1 of select_sahel_periods.py
+
+  scream3_tune:
+    label: 3-km TUNE (SCREAMv1 Cess2)
+    title: "SCREAM 3-km TUNE"
+    config_file: mcs_resolution/tracking/scream_cess2/config_mcs_tbpf_SCREAMv1-Cess2_rows.yml
+    trackstats_file: /global/cfs/cdirs/m1867/zfeng/E3SM/SCREAMv1/cess2/global/mcs/stats/mcs_tracks_final_20190803.0000_20210306.0000.rows
+    pixel_path: /pscratch/sd/w/wcmca1/SCREAMv1-cess2/mcs/mcstracking/20190803.0000_20210306.0000/
+    selection_parquet: /global/cfs/cdirs/m1867/zfeng/E3SM/SCREAMv1/cess2/global/mcs/stats/mcs_tracks_final_combined_global_2019_2021.parquet
+    start: '2020-08-15'   # rank 1 of select_sahel_periods.py
+
+  scream13_ctl:
+    label: 13-km CTL (SCREAM ne256)
+    title: "SCREAM 13-km CTL"
+    config_file: mcs_resolution/tracking/obs_scream_decadal/as_run/config_mcs_tbpf_SCREAM_ne256_ctl_{year}.yml
+    trackstats_file: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/ne256/ctl/stats/mcs_tracks_final_{year}0101.0000_{next}0101.0000.nc
+    pixel_path: /pscratch/sd/w/wcmca1/SCREAM-decadal/mcs_tbpf/ne256/ctl/{year}/mcstracking/{year}0101.0000_{next}0101.0000/
+    selection_parquet: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/ne256/ctl/stats/mcs_tracks_final_combined_global_1995_2005.parquet
+    start: '1999-07-17'   # rank 2 of select_sahel_periods.py; rank 1 (1999-06-07) is mostly quasi-stationary clusters: 3 of its 57 MCSs move clearly westward
+
+  scream13_tune:
+    label: 13-km TUNE (SCREAM ne256)
+    title: "SCREAM 13-km TUNE"
+    config_file: mcs_resolution/tracking/obs_scream_decadal/as_run/config_mcs_tbpf_SCREAM_ne256_tune_{year}.yml
+    trackstats_file: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/ne256/tune/stats/mcs_tracks_final_{year}0101.0000_{next}0101.0000.nc
+    pixel_path: /pscratch/sd/w/wcmca1/SCREAM-decadal/mcs_tbpf/ne256/tune/{year}/mcstracking/{year}0101.0000_{next}0101.0000/
+    selection_parquet: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/ne256/tune/stats/mcs_tracks_final_combined_global_1995_2005.parquet
+    start: '2001-08-18'   # rank 1 of select_sahel_periods.py
+
+  e3sm25:
+    label: 25-km (E3SM ne120, 2 mm/h)
+    title: "E3SM 25-km"
+    config_file: mcs_resolution/tracking/e3sm/as_run/ne120_hr2p0/campaign_{year}/config_ne120_{year}_hr2p0.yml
+    trackstats_file: /pscratch/sd/f/feng045/E3SM_polun/ne120_remap_0.1deg/mcs_tbpf_hr2p0/{year}/stats/mcs_tracks_final_{year}0101.0000_{next}0101.0000.rows
+    pixel_path: /pscratch/sd/f/feng045/E3SM_polun/ne120_remap_0.1deg/mcs_tbpf_hr2p0/{year}/mcstracking/{year}0101.0000_{next}0101.0000/
+    selection_parquet: /global/cfs/cdirs/m1867/zfeng/E3SM_polun/ne120_remap_0.1deg/mcs_tbpf_hr2p0/stats/mcs_tracks_final_combined_global_2009_2011.parquet
+    start: '2009-08-30'   # rank 1 of select_sahel_periods.py
+
+  e3sm100:
+    label: 100-km (E3SM ne30, 2 mm/h)
+    title: "E3SM 100-km"
+    config_file: mcs_resolution/tracking/e3sm/as_run/ne30_hr2p0/campaign_{year}/config_ne30_{year}_hr2p0.yml
+    trackstats_file: /pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf_hr2p0/{year}/stats/mcs_tracks_final_{year}0101.0000_{next}0101.0000.rows
+    pixel_path: /pscratch/sd/f/feng045/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf_hr2p0/{year}/mcstracking/{year}0101.0000_{next}0101.0000/
+    selection_parquet: /global/cfs/cdirs/m1867/zfeng/E3SM_polun/ne30_remap_0.1deg/mcs_tbpf_hr2p0/stats/mcs_tracks_final_combined_global_2009_2020.parquet
+    start: '2017-06-05'   # rank 1 of select_sahel_periods.py

@@ -90,7 +90,7 @@ cat > "$ARCH/README.md" <<'EOF'
 These 4 files were the PyFLEXTRKR track statistics of the SCREAM Cess2 run (2019-08-03 .. 2021-03-06) in `../` until 2026-11-17. They were made
 on 2026-01-17 (dense netCDF, one array per variable over [tracks, times]) with an older PyFLEXTRKR that did not write `total_volrain` and
 `total_heavyvolrain`. They were replaced by the re-run of 2026-11-16 (feng045, pinned code `tbpf_code_a4b8ad8`, config
-`scream/tracking/config_mcs_tbpf_SCREAMv1-Cess2_rows.yml`).
+`scream/mcs_resolution/tracking/scream_cess2/config_mcs_tbpf_SCREAMv1-Cess2_rows.yml`).
 
 | archived file (old) | size | step | replaced by (in `../`) |
 | --- | --- | --- | --- |
