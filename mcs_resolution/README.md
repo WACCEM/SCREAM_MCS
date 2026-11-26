@@ -31,7 +31,7 @@ All data sets are tracked on a 0.1 x 0.1 degree lat-lon grid with hourly Tb and 
 |---|---|---|---|
 | `obs` | `/pscratch/sd/w/wcmca1/GPM/IR_IMERG_Combined_V07B/<year>/` | `/global/cfs/cdirs/wcm_shr/gsharing/MCS_Global/V3/MCSMIP/config_mcs_tbpf_imergv7_mcsmip.yml` (published with the data; saved with the 2024 dates) | old workflow; the commit is not recorded in this repository |
 | `scream3_ctl` | `/global/cfs/cdirs/e3smdata/simulations/scream-decadal/MCS/input4tracking/ne1024/` | `tracking/obs_scream_decadal/as_run/config_mcs_tbpf_SCREAM_decadal_<year>.yml` | `runscripts/run_mcs_tbpf_mcsmip.py` of the working copy of PyFLEXTRKR-dev (no pinned commit); logs of 2026-06-07 and 06-08 |
-| `scream3_tune` | HEALPix catalog `scream_cess2` (`hackathon/catalog/NERSC/main.yaml`) | pixel files: `tracking/scream_cess2/config_mcs_tbpf_SCREAMv1-Cess2.yml`; statistics: `..._rows.yml` | pixel files: `run_mcs_tbpf_mcsmip.py` (environment `pyflex-dev`); statistics re-run of 2026-11-16: `run_mcs_tbpf_unified.py` of the pinned worktree `tbpf_code_a4b8ad8` |
+| `scream3_tune` | `/pscratch/sd/w/wcmca1/SCREAMv1-cess2/healpix/SCREAMv1_1H_zoom9_20190801_20210306.zarr` (HEALPix catalog `scream_cess2` of `hackathon/catalog/NERSC/main.yaml`, zoom 9, 1H; the scratch metadata were purged). **Complete CFS copy:** `/global/cfs/cdirs/wcm_shr/SCREAMv1-cess2/SCREAMv1_1H_zoom9_20190801_20210306.zarr` (section 7) | pixel files: `tracking/scream_cess2/config_mcs_tbpf_SCREAMv1-Cess2.yml`; statistics: `..._rows.yml` | pixel files: `run_mcs_tbpf_mcsmip.py` (environment `pyflex-dev`); statistics re-run of 2026-11-16: `run_mcs_tbpf_unified.py` of the pinned worktree `tbpf_code_a4b8ad8` |
 | `scream13_ctl` | `.../input4tracking/ne256/01/` | `.../as_run/config_mcs_tbpf_SCREAM_ne256_ctl_<year>.yml` | as `scream3_ctl`; logs of 2026-06-09 to 06-11 |
 | `scream13_tune` | `.../input4tracking/ne256/03/` | `.../as_run/config_mcs_tbpf_SCREAM_ne256_tune_<year>.yml` | as `scream3_ctl`; logs of 2026-06-11 to 06-13 |
 | `e3sm25` | `/pscratch/sd/f/feng045/E3SM_polun/ne120_remap_0.1deg/olr_pcp/` | `tracking/e3sm/as_run/ne120_hr10/` (idfeature to identifymcs) and `.../ne120_hr2p0/campaign_<year>/` (matchpf onward) | 10 mm/h campaigns: `tbpf_perf_code` (2009; commit 1e7d2c4), `tbpf_code_a4b8ad8` (2010, 2011). 2 mm/h: `tbpf_code_38ae5d1` |
@@ -108,7 +108,7 @@ Paths are relative to the `scream` repository unless they start with `/`.
 | | `gen_{scream,imerg}_mcs_monthly_stats_taskfarmer.py` (monthly MCS rain maps), `slurm_zstash_to_hpss.sh`, `config_mcs_SCREAM_decadal_HsiYen.yml` (config of Hsi-Yen Ma) |
 | `tracking/obs_scream_decadal/as_run/` | frozen record: per-year configs and job scripts (git-ignored), TaskFarmer task lists and job scripts, `logs/` (git-ignored). Contents are unchanged, so they still name the old folder `tracking_decadal/`. No per-year IMERG job scripts were kept |
 | `tracking/obs_scream_decadal/jobs/` | where the generators write from now on (git-ignored) |
-| `tracking/scream_cess2/` | `config_mcs_tbpf_SCREAMv1-Cess2.yml` and `..._rows.yml`, `slurm_SCREAM-Cess2_global.sh`, `..._global_dask.sh`, `..._stats_rerun.sh` |
+| `tracking/scream_cess2/` | `config_mcs_tbpf_SCREAMv1-Cess2.yml` and `..._rows.yml`, `slurm_SCREAM-Cess2_global.sh`, `..._global_dask.sh`, `..._stats_rerun.sh`, `rebuild_zarr_metadata.py` (input store, section 7) |
 | `tracking/e3sm/` | `gen_heavyrain_sensitivity.py` (2 mm/h production and sensitivity runs), `finalize_production_tree.py` (cross-year links) |
 | `tracking/e3sm/templates/` | **copies**: `config_mcs_tbpf_e3sm_0p1deg_template.yml`, `slurm_tbpf_mcstracking_{track,stats_multinode}.sh` (from `PyFLEXTRKR-dev/config/` at 38ae5d1; the campaigns ran with the version of their pinned code) and `config_mcs_tbpf_e3sm_ne30_0p1deg_template.yml` (it existed only on pscratch) |
 | `tracking/e3sm/as_run/` | **copies** from pscratch. `*_hr10/campaign_<year>/`: `jobs.json`, `submissions.jsonl`, statistics config and job script (one monthly tracking job as example in 2010). `*_hr2p0/campaign_<year>/`: config and job script |
@@ -185,12 +185,12 @@ The default `--code-dir` is `tbpf_code_a4b8ad8`; the production used `--code-dir
 
 ## 6. Sahel MCS animations
 
-One 7-day animation per data set on the same map (0-30 N, 20 W - 40 E): Tb, precipitation, MCS outlines (one color per track), tracks and track numbers;
+One 7-day animation per data set on the same map (0-30 N, 20 W - 40 E): Tb, precipitation, MCS outlines (dark red), tracks and track numbers;
 hourly frames at 4 frames per second (42 s). Environment: `/global/common/software/m1867/python/pyflex26.3`; run on a compute node.
 
 | file in `animation/` | content |
 |---|---|
-| `sahel_sources.yaml` | per data set: config, yearly statistics, pixel folder, Parquet for the period selection, **start day**; shared map box and output folder |
+| `sahel_sources.yaml` | per data set: config, yearly statistics, pixel folder, Parquet for the period selection, **start day**; shared map box, output folder and **look** (rain levels and colors, outlines, pixels without Tb) |
 | `select_sahel_periods.py` | ranks 7-day periods by the large, long-lived MCSs over the Sahel |
 | `make_mcs_animation_sahel.py` | checks the inputs and makes the frames and the mp4 (plotting by `pyflextrkr.visualization.mcs_animation`) |
 | `sahel_common.py` | shared helpers, including the pairing check of pixel files and statistics |
@@ -203,10 +203,14 @@ python make_mcs_animation_sahel.py --source obs --start 2010-08-07            # 
 python select_sahel_periods.py --sources obs --top 8                          # more candidate periods
 ```
 
+The look needs the options `--var2_levels`, `--oob_color_l/h` and `--tb_nan_color` of `plot_mcs_tracks.py`, added to PyFLEXTRKR on 2026-11-25
+([docs/visualization/options.md](https://github.com/WACCEM/PyFLEXTRKR-dev/blob/perf-workflow/docs/visualization/options.md); **not yet committed**).
+
 Tests: `tests/test_mcs_resolution.py`.
 
-**Output:** `/pscratch/sd/f/feng045/SCREAM-decadal/mcs_animations_sahel/mcs_sahel_<key>_<first day>_<last day>.mp4`, frames in `<key>/frames/`,
-ranking tables in `period_selection/`. pscratch is purged: copy what you want to keep.
+**Output:** `/pscratch/sd/f/feng045/SCREAM-decadal/mcs_animations_sahel/v2/mcs_sahel_<key>_<first day>_<last day>.mp4`, frames in `<key>/frames/`.
+One folder up: the first set of movies (rain from 2 mm/h, one outline color per track), the ranking tables (`period_selection/`) and the test images
+behind the choice of the look (`review_round2/`, `review_round3/`). pscratch is purged: copy what you want to keep.
 
 ### How the periods were chosen
 
@@ -236,29 +240,66 @@ be read as a comparison of the data sets.
 
 ### Before comparing the movies
 
-**The rain color scale starts at 2 mm/h; weaker rain is not drawn.** This hides much more of the E3SM rain than of the others, so the E3SM movies look far
-drier than their rain amounts are. Share of the rain amount that is drawn (every 3rd frame of each animated week):
+**Rain is drawn from 0.5 mm/h**; violet is 30 mm/h and more. Weaker rain is not drawn, which hides more of the E3SM rain than of the others. Share of the
+rain amount that is drawn, all 168 frames of each animated week (2 and 1 mm/h for comparison; the first movies started at 2):
 
-| key | at 2 mm/h or more, whole map [%] | same, inside MCS outlines [%] | at 1 mm/h or more, whole map [%] |
-|---|---|---|---|
-| `obs` | 67 | 80 | 83 |
-| `scream3_ctl` | 85 | 89 | 91 |
-| `scream3_tune` | 87 | 91 | 93 |
-| `scream13_ctl` | 85 | 91 | 92 |
-| `scream13_tune` | 83 | 90 | 90 |
-| `e3sm25` | 17 | 33 | 38 |
-| `e3sm100` | 17 | 35 | 44 |
+| key | whole map, from 2 / 1 / **0.5** mm/h [%] | inside MCS outlines, from 2 / 1 / **0.5** mm/h [%] |
+|---|---|---|
+| `obs` | 67 / 83 / **92** | 80 / 92 / **97** |
+| `scream3_ctl` | 85 / 91 / **95** | 89 / 95 / **98** |
+| `scream3_tune` | 86 / 93 / **96** | 91 / 96 / **98** |
+| `scream13_ctl` | 85 / 92 / **95** | 91 / 96 / **98** |
+| `scream13_tune` | 83 / 90 / **94** | 90 / 95 / **98** |
+| `e3sm25` | 17 / 38 / **73** | 33 / 61 / **90** |
+| `e3sm100` | 17 / 44 / **75** | 35 / 71 / **92** |
 
-(These are the shares of one week each, not a comparison of the data sets. Script: `period_selection/check_rain_visibility.py` in the output folder.)
-The levels are fixed in `pyflextrkr/visualization/mcs_cli.py` (the 1-panel `tbpf` block); there is no option for them.
+Rain of 30 mm/h and more (violet) is 2-4 % of the pixels with rain in the four SCREAM weeks, 0.04 % in the OBS week and nearly absent in the two E3SM weeks.
+(All of these are numbers of one week each, not a comparison of the data sets.)
 
-Also, from the plotting code and style shared by all movies: each MCS outline has its own color (the magenta circle "MCS Mask" in the legend is only a
-symbol), thin outlines can be faint on white cloud shields, and the legend covers the lower right corner of the map.
+**Pixels without Tb.** The pixel files have NaN for two different things and do not record which:
+
+| | data gap | removed by the Tb range |
+|---|---|---|
+| cause | the input value is missing (MergedIR stores NaN) | the input is valid; Tb is outside `absolutetb_threshs` = 160-330 K (in these weeks: above 330 K, hot clear sky; Tb converted from OLR above about 373 W/m2) |
+| in `idclouds` (`idclouds_tbpf.py`) | a 5 x 5 median filter first fills small gaps (all of a 1 x 1 or 2 x 2 gap, only the rim of large ones) | set to NaN **after** that filter, so never filled |
+| both | NaN in the pixel file; both count toward `miss_thresh` (0.4), above which a frame is skipped | |
+
+Which one a pixel is can only be told from the raw input. Checked for all 168 frames of each animated week, map box: in the six model data sets every pixel
+without Tb is above 330 K in the raw input; in OBS every one is missing in the raw MergedIR file. So the model movies draw them like the warmest Tb
+(`tb_nan_color: warm`) and the OBS movie in a very light color of its own (`papayawhip`). **The plot does not know the reason:** for another period, check it
+first. The tracking is not affected by the hot pixels as cloud (clouds are below 261 K).
+
+The outlines are 2 pixels wide (`perim_thick: 20` km; the plotting code converts with the `pixel_radius` of the config, 10 km in all of them, on the
+0.1 degree grid). They are drawn above the rain, so they hide a little more of it than 1-pixel lines. With one color, touching outlines do not show which
+side belongs to which MCS. The legend covers the lower right corner of the map.
 
 ## 7. Data at risk and open items
 
+### The Cess2 (3-km TUNE) input store: use the CFS copy
+
+**CFS copy (complete and verified, 2026-11-25):** `/global/cfs/cdirs/wcm_shr/SCREAMv1-cess2/SCREAMv1_1H_zoom9_20190801_20210306.zarr`: 21,028 inodes (21,006 data files, 15 metadata files, 7 folders), 364.0 GB. All 21,006 data files
+are byte-identical to the scratch original, the 15 metadata files are those of the rebuild (below), and the copy opened through the catalog entry gives the
+same Tb and rain rate as the Cess2 MCS pixel files at all 4,320,000 pixels (largest difference 0) at 7 times from August 2019 to March 2021 (one hour off,
+the Tb pixels do not agree). The folder `wcm_shr/SCREAMv1-cess2` is readable by members of the group `m1867` only. The catalog entry `scream_cess2` of
+`hackathon/catalog/NERSC/main.yaml` **still points to the scratch store**, which cannot be opened.
+
+```bash
+python -c "import xarray as xr; print(xr.open_zarr('/global/cfs/cdirs/wcm_shr/SCREAMv1-cess2/SCREAMv1_1H_zoom9_20190801_20210306.zarr', consolidated=True))"
+python mcs_resolution/tracking/scream_cess2/rebuild_zarr_metadata.py --verify --store /global/cfs/cdirs/wcm_shr/SCREAMv1-cess2/SCREAMv1_1H_zoom9_20190801_20210306.zarr        # compute node
+```
+
+**The scratch original** (`/pscratch/sd/w/wcmca1/SCREAMv1-cess2/healpix/SCREAMv1_1H_zoom9_20190801_20210306.zarr`) lost its **15 metadata files**
+(`.zgroup`, `.zattrs`, `.zmetadata`, and `.zarray` + `.zattrs` of its 6 arrays) to the NERSC scratch purge on 2026-09-01 and 09-02 (purge logs in
+`/pscratch/sd/w/wcmca1/.purge/`; no data chunk is in a purge log of 2026), so it cannot be opened. Its data are complete: all 21,006 chunk files decode to the
+expected size; the time axis has 13,982 hours from 2019-08-01 00 to 2021-03-06 13 without 29 February 2020. All of them were on the purge candidate list of
+2026-11-23 (the sibling stores of that folder are damaged too; the long zoom 11 store is empty). The 15 files were made again by
+`tracking/scream_cess2/rebuild_zarr_metadata.py` (its docstring says where every item comes from; attributes that are not in those sources cannot be
+recovered, so the text of the originals may differ). Nothing was written into the scratch original.
+
+### Other data on scratch
+
 **On purgeable scratch only, or mainly:**
-* the SCREAM decadal and Cess2 pixel files (`/pscratch/sd/w/wcmca1/...`); their backup state was not checked;
+* the SCREAM decadal and Cess2 pixel files (`/pscratch/sd/w/wcmca1/...`); their backup state was not checked (none was on the candidate list of 2026-11-23);
 * the E3SM pixel files and yearly trees (`/pscratch/sd/f/feng045/E3SM_polun/`); HPSS backup: `docs/hpss_e3sm.md`;
 * the pinned code worktrees (`/pscratch/sd/f/feng045/tbpf_code_*`; the commits are in the PyFLEXTRKR-dev repository).
 

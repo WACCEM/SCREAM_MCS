@@ -10,6 +10,7 @@
 #   pixel_path        folder of the pixel-level files mcstrack_YYYYMMDD_hhmmss.nc
 #   selection_parquet combined global Parquet (the file the analysis notebooks are made from), used only to choose the period
 #   start             first day of the animation (the period is `ndays` days). Chosen with select_sahel_periods.py, see README.md
+#   look              (optional) settings that replace those of `common: look` for this source
 #
 # {year} and {next} in a path are the year of the start day and the following year. A relative config_file is relative to the
 # scream repository.
@@ -20,7 +21,18 @@ common:
   months: [5, 6, 7, 8, 9]                                                          # May to September
   map_box: {lon_min: -20.0, lon_max: 40.0, lat_min: 0.0, lat_max: 30.0}            # map of the animations
   core_box: {lon_min: -18.0, lon_max: 35.0, lat_min: 5.0, lat_max: 20.0}           # box in which the period is ranked
-  outdir: /pscratch/sd/f/feng045/SCREAM-decadal/mcs_animations_sahel
+  outdir: /pscratch/sd/f/feng045/SCREAM-decadal/mcs_animations_sahel/v2          # (the movies of round 1 are one folder up)
+  # Look of the maps, chosen 2026-11-25: parameters of pyflextrkr.visualization.mcs_animation (PyFLEXTRKR docs/visualization/options.md)
+  look:
+    var2_levels: [0.5, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30]   # rain [mm/h]; weaker than the first level is not drawn
+    oob_color_l: white          # lower arrow of the rain colorbar (nothing is drawn on the map below 0.5 mm/h)
+    oob_color_h: '#7f00ff'      # violet: rain of 30 mm/h and more
+    perim_color: '#8b0000'      # one dark red for all MCS outlines
+    perim_thick: 20             # outline width [km]; with pixel_radius 10 km of the configs: 2 pixels
+    # Pixels without Tb. 'warm' (like the warmest Tb): right for the MODEL data, where they are hot clear-sky pixels that the
+    # tracking removed (Tb above 330 K, absolutetb_threshs). The pixel files do not say why a pixel has no Tb: for another
+    # period, check it against the raw input before relying on this (a real data gap would be drawn as hot clear sky)
+    tb_nan_color: warm
 
 sources:
   obs:
@@ -31,6 +43,7 @@ sources:
     pixel_path: /global/cfs/cdirs/wcm_shr/gsharing/MCS_Global/V3/MCSMIP/mcstracking_mcsmip/{year}0101.0000_{next}0101.0000/
     selection_parquet: /global/cfs/cdirs/m1867/zfeng/SCREAM-decadal/mcs_global_v3/MCSMIP/stats/mcs_tracks_final_combined_global_2007_2017.parquet
     start: '2007-08-26'   # rank 1 of select_sahel_periods.py
+    look: {tb_nan_color: papayawhip}   # real data gaps of MergedIR: a very light color of their own
 
   scream3_ctl:
     label: 3-km CTL (SCREAM ne1024)

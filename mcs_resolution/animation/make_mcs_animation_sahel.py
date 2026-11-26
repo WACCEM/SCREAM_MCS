@@ -17,6 +17,9 @@ Usage (compute node, PyFLEXTRKR environment /global/common/software/m1867/python
     python make_mcs_animation_sahel.py --source obs --start 2010-08-01 --ndays 2       # another period
     python make_mcs_animation_sahel.py --source obs --playback-fps 6 --skip-plotting   # remake the mp4 from the frames
 
+The look (rain levels and colors, MCS outlines, pixels without Tb) is `look` in sahel_sources.yaml; it needs the options
+--var2_levels, --oob_color_l/h and --tb_nan_color of PyFLEXTRKR.
+
 Output: <outdir>/<source>/frames/*.png and <outdir>/mcs_sahel_<source>_<first day>_<last day>.mp4
 """
 import argparse
@@ -104,7 +107,8 @@ def prepare(key, source, common, args):
 
 def animation_parameters(job, source, common, args):
     """
-    Parameters of pyflextrkr.visualization.mcs_animation for one source (the look is the same for all sources).
+    Parameters of pyflextrkr.visualization.mcs_animation for one source (the same look for all sources, except where a source
+    sets its own `look` in the source file).
 
     Args:
         job: dict
@@ -122,7 +126,10 @@ def animation_parameters(job, source, common, args):
     """
     outdir = os.path.abspath(args.outdir or common['outdir'])
     box = common['map_box']
+    # The chosen look (colors, rain levels, outlines): the shared settings, replaced by those of the source where it has its own
+    look = {**common.get('look', {}), **source.get('look', {})}
     return dict(
+        **look,
         # One map: Tb (gray), precipitation (color), MCS outlines, tracks and numbers
         plot_type='1panel', data_type='tbpf',
         start_date=job['t0'].strftime('%Y-%m-%dT%H:%M'), end_date=job['t1'].strftime('%Y-%m-%dT%H:%M'),

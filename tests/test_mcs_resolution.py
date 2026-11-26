@@ -105,3 +105,22 @@ def test_pairing_check_accepts_the_own_statistics_and_rejects_another(tmp_path):
                             'meanlon': (('tracks', 'times'), np.array([[centers[i][1]] * 6 for i in order]))})
         stats.to_netcdf(tmp_path / name)
         assert common_tools.check_pairing(files, str(tmp_path / name))['ok'] is expected
+
+
+def test_the_look_reaches_the_animation_parameters_with_the_obs_exception():
+    """The shared look is in the parameters of every source; only OBS (real data gaps) draws pixels without Tb in its own color."""
+    import argparse
+
+    import make_mcs_animation_sahel as wrapper
+
+    common, sources = common_tools.load_sources()
+    args = argparse.Namespace(outdir=None, workers=1, playback_fps=4, skip_plotting=False)
+    job = {'key': 'x', 'paths': {'config_file': 'c', 'trackstats_file': 's', 'pixel_path': 'p/'},
+           't0': pd.Timestamp('2007-08-26'), 't1': pd.Timestamp('2007-09-01 23:59')}
+    # Loop over the sources: the parameters that the animation library gets
+    for key, source in sources.items():
+        params = wrapper.animation_parameters(job, source, common, args)
+        assert params['var2_levels'][0] == 0.5 and params['var2_levels'][-1] == 30
+        assert (params['oob_color_l'], params['oob_color_h']) == ('white', '#7f00ff')
+        assert (params['perim_color'], params['perim_thick']) == ('#8b0000', 20)
+        assert params['tb_nan_color'] == ('papayawhip' if key == 'obs' else 'warm')
