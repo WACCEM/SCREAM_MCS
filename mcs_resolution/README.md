@@ -204,7 +204,7 @@ python select_sahel_periods.py --sources obs --top 8                          # 
 ```
 
 The look needs the options `--var2_levels`, `--oob_color_l/h` and `--tb_nan_color` of `plot_mcs_tracks.py`, added to PyFLEXTRKR on 2026-11-25
-([docs/visualization/options.md](https://github.com/WACCEM/PyFLEXTRKR-dev/blob/perf-workflow/docs/visualization/options.md); **not yet committed**).
+([docs/visualization/options.md](https://github.com/WACCEM/PyFLEXTRKR-dev/blob/perf-workflow/docs/visualization/options.md); commit `a73fd65`, branch `perf-workflow`).
 
 Tests: `tests/test_mcs_resolution.py`.
 
